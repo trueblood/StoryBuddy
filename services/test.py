@@ -7,6 +7,7 @@ import copy
 import json
 from datasets import load_dataset
 from tqdm import tqdm
+import os
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -197,29 +198,89 @@ class GenerateStory:
         return generated_story
 '''    
 
+
+'''
+# this is beam generation
 class GenerateStory:
-    def generate_story(model, prompt, tokenizer, max_length=50):
+    @staticmethod
+    def generate_story(model, prompt, tokenizer, max_length=50, beam_width=1):
         model.eval()
-        
-        # Start with just the first token of the encoded prompt
+
+        # Initialize the beam with the start token
         start_token_id = tokenizer.encode(prompt)[0]
-        tgt_input_ids = torch.tensor([[start_token_id]], dtype=torch.long)
+        beam = [(torch.tensor([[start_token_id]], dtype=torch.long), 0)]  # List of tuples (sequence, score)
 
-        generated_ids = [start_token_id]
+        for step in range(max_length):
+            candidates = []
+            for seq, score in beam:
+                if seq[0, -1].item() == tokenizer.vocab.get('<eos>'):  # End of sequence token
+                    candidates.append((seq, score))
+                    continue
 
-        with torch.no_grad():
-            for _ in range(max_length):
-                output = model(tgt_input_ids, tgt_input_ids)
-                next_token_id = output[0, -1].argmax().item()
+                output = model(seq, seq)
+                probs = torch.softmax(output[:, -1, :], dim=-1)
+                top_probs, top_ids = probs.topk(beam_width)
 
-                # Break if the model starts repeating the same token or generates a [PAD] token
-                if next_token_id == generated_ids[-1] or next_token_id == tokenizer.vocab.get('[PAD]', -1):
-                    break
+                for i in range(beam_width):
+                    next_id = top_ids[0, i].unsqueeze(0).unsqueeze(0)
+                    next_score = score + torch.log(top_probs[0, i])
+                    next_seq = torch.cat([seq, next_id], dim=1)
+                    candidates.append((next_seq, next_score))
 
-                generated_ids.append(next_token_id)
-                tgt_input_ids = torch.cat([tgt_input_ids, torch.tensor([[next_token_id]], dtype=torch.long)], dim=-1)
+                    # Debugging: Print the tokens being added
+                    token = tokenizer.decode(next_id[0])
+                    print(f"Step {step}, Adding token: '{token}' to sequence")
 
-        generated_story = tokenizer.decode(generated_ids)
+            # Sort all candidates by score and select the best ones
+            ordered = sorted(candidates, key=lambda x: x[1], reverse=True)
+            beam = ordered[:beam_width]
+
+            # Enhanced Debugging: Print the sequences in the beam after each step
+            for seq, _ in beam:
+                sequence_tokens = tokenizer.decode(seq[0])
+                print(f"Beam Contents at Step {step}: '{sequence_tokens}'")
+
+            # Log intermediate outputs
+            print(f"Step {step}, Beam Contents: {beam}")
+
+        # Select the sequence with the highest score
+        best_sequence, _ = beam[0]
+        generated_story = tokenizer.decode(best_sequence[0].tolist())
+        print(f"Generated story: {generated_story}")
+        return generated_story
+
+'''
+
+# this is greedy generation
+class GenerateStory:
+    @staticmethod
+    def generate_story(model, prompt, tokenizer, max_length=100):
+        model.eval()
+
+        # Encode the prompt and initialize the sequence
+        start_token_ids = tokenizer.encode(prompt)
+        seq = torch.tensor([start_token_ids], dtype=torch.long)
+
+        for step in range(max_length):
+            if seq.size(1) > max_seq_length:
+                seq = seq[:, -max_seq_length:]
+            # Check if the last token is the end of sequence token
+            if seq[0, -1].item() == tokenizer.vocab.get('<eos>'):
+                break
+
+            output = model(seq, seq)
+            probs = torch.softmax(output[:, -1, :], dim=-1)
+            next_token_id = probs.argmax(dim=-1).unsqueeze(0)
+
+            # Append the next token ID to the sequence
+            seq = torch.cat([seq, next_token_id], dim=1)
+
+            # Debugging: Print the tokens being added
+            token = tokenizer.decode(next_token_id[0].tolist())
+            print(f"Step {step}, Adding token: '{token}' to sequence")
+
+        generated_story = tokenizer.decode(seq[0].tolist())
+        print(f"Generated story: {generated_story}")
         return generated_story
 
 
@@ -252,8 +313,8 @@ dataset = load_dataset("roneneldan/TinyStories")
 
 #print(dataset);
 # Select a smaller subset of the dataset
-num_examples = min(100, len(dataset['train']))
-dataset['train'] = dataset['train'].select(range(num_examples))
+#num_examples = min(100, len(dataset['train']))
+#dataset['train'] = dataset['train'].select(range(num_examples))
 #dataset = large_dataset['train']['text'].select(range(25))  # Adjust the range 
 torch.autograd.set_detect_anomaly(True) # Utilize PyTorch's debugging tools. This can help identify where NaNs are being introduced.
 
@@ -261,14 +322,61 @@ torch.autograd.set_detect_anomaly(True) # Utilize PyTorch's debugging tools. Thi
 #print(dataset['train'][0])
 tokenizer = CustomTokenizer('tiny_stories_tokenizer.json')
 print("tokenizer ready")
+
+
+'''
+
+
+
+# Sample text to test the tokenizer
+sample_text = "Hello, this is a test."
+
+# Encode the text
+encoded_text = tokenizer.encode(sample_text)
+print(f"Encoded Text: {encoded_text}")
+
+# Decode the encoded text back to text
+decoded_text = tokenizer.decode(encoded_text)
+print(f"Decoded Text: {decoded_text}")
+
+# Check if the decoded text matches the original text
+if decoded_text == sample_text:
+    print("Tokenizer Test Passed: The decoded text matches the original text.")
+else:
+    print("Tokenizer Test Failed: The decoded text does not match the original text.")
+
+# Check if the standard space character is in the tokenizer's vocabulary
+if " " in tokenizer.vocab:
+    space_token_id = tokenizer.vocab[" "]
+    print(f"The standard space character is in the vocabulary with token ID: {space_token_id}")
+else:
+    print("The standard space character is not in the tokenizer's vocabulary.")
+'''
+
+
+
+
+
+
+
+
+
 tokenized_dataset = dataset.map(tokenize_function, batched=True)
 # Add the code here to check the first few samples of tokenized data
-for i in range(5):  # Check first 5 examples
-    print(f"Sample {i}: {tokenized_dataset['train'][i]}")
+#for i in range(5):  # Check first 5 examples
+    #print(f"Sample {i}: {tokenized_dataset['train'][i]}")
 
 #for i in range(5):  # Check first 5 examples
   #  print(tokenized_dataset['train'][i])
 #print(tokenized_dataset['train'][0]['src'][:10])  # Print first 10 tokens of the first sample
+
+# Split dataset into training and validation
+total_size = len(tokenized_dataset['train'])
+train_size = int(total_size * 0.8)
+val_size = total_size - train_size
+from torch.utils.data import random_split
+
+train_dataset, val_dataset = random_split(tokenized_dataset['train'], [train_size, val_size])
 
 
 # DataLoader
@@ -280,8 +388,8 @@ def collate_fn(batch):
     tgt_batch = torch.nn.utils.rnn.pad_sequence(tgt_batch, batch_first=True, padding_value=0)
 
     # Check the shapes after padding
-    print(f"Shape of src_batch after padding: {src_batch.shape}")  # Should be 2D
-    print(f"Shape of tgt_batch after padding: {tgt_batch.shape}")  # Should be 2D
+    #print(f"Shape of src_batch after padding: {src_batch.shape}")  # Should be 2D
+    #print(f"Shape of tgt_batch after padding: {tgt_batch.shape}")  # Should be 2D
 
     return src_batch, tgt_batch
 
@@ -302,7 +410,9 @@ def collate_fn(batch):
 
 
 
-train_loader = data.DataLoader(tokenized_dataset['train'], batch_size=64, shuffle=True, collate_fn=collate_fn)  
+train_loader = data.DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)  
+val_loader = data.DataLoader(val_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn)
+
 print("train_loader ready")
 
 src_vocab_size = tokenizer.get_vocab_size()
@@ -320,92 +430,143 @@ print("transformer ready")
 criterion = nn.CrossEntropyLoss(ignore_index=0)
 optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 #optimizer = optim.Adam(transformer.parameters(), lr=0.00001)  # Lower learning rate, to help fix issues with the training
-
+checkpoint_dir = "model_checkpoints"
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+best_loss = float('inf')
 transformer.train()
 print("training started")
 
 def check_nan(tensor):
     return torch.isnan(tensor).any()
 
-'''
-# we like this one
-for epoch in range(1):
-    with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
-        for src_batch, tgt_batch in train_loader:
-            print(f"src_batch shape: {src_batch.shape}, tgt_batch shape: {tgt_batch.shape}")
-            # small check to make rule out data issues
-            if check_nan(src_batch) or check_nan(tgt_batch):
-                print("NaN value detected in the batch.")
-                break
-            optimizer.zero_grad()
-            output = transformer(src_batch, tgt_batch[:, :-1])
-            if torch.isnan(output).any() or torch.isnan(tgt_batch[:, 1:]).any():
-                print("NaN detected in model output or target batch")
-            loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_batch[:, 1:].contiguous().view(-1))
-            print(loss)
-            if not torch.isnan(loss):
+
+#from torch.utils.data import DataLoader, random_split
+
+# Assuming you have a dataset object for your entire dataset
+# Let's say you want to use 80% of it for training and 20% for validation
+#total_size = len(dataset)my_dataset_dictionary['train'][1]
+#train_size = int(total_size * 0.8)
+#val_size = total_size - train_size
+
+#train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+# Now create DataLoaders for training and validation datasets
+#train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)  
+#val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn)
+
+
+
+
+import os
+import torch
+from torch import nn, optim
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from sacrebleu.metrics import BLEU
+
+# Assuming you have already defined your Transformer model and CustomTokenizer classes
+# ...
+
+# Function to evaluate the model using BLEU score
+def evaluate_model(model, val_loader, tokenizer):
+    model.eval()
+    references = []
+    hypotheses = []
+    with torch.no_grad():
+        for src_batch, tgt_batch in val_loader:
+            output = model(src_batch, tgt_batch[:, :-1])
+            output = torch.argmax(output, dim=-1)
+            hypotheses.extend([tokenizer.decode(hyp) for hyp in output])
+            references.extend([tokenizer.decode(ref) for ref in tgt_batch[:, 1:]])
+
+    bleu = BLEU()
+    bleu_score = bleu.corpus_score(hypotheses, [references])
+    return bleu_score.score
+
+createModel = True
+
+if (createModel):
+
+    # Directory for saving model checkpoints
+    checkpoint_dir = "model_checkpoints"
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
+    best_loss = float('inf')
+
+    # Transformer model initialization
+    src_vocab_size = tokenizer.get_vocab_size()
+    tgt_vocab_size = tokenizer.get_vocab_size()
+    d_model = 512
+    num_heads = 8
+    num_layers = 6
+    d_ff = 2048
+    max_seq_length = 100
+    dropout = 0.1
+
+    transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
+    optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+    criterion = nn.CrossEntropyLoss(ignore_index=0)
+
+    # Training loop
+    num_epochs = 100
+    for epoch in range(num_epochs):
+        epoch_loss = 0
+        with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
+            for src_batch, tgt_batch in train_loader:
+                transformer.train()
+                optimizer.zero_grad()
+
+                output = transformer(src_batch, tgt_batch[:, :-1])
+                loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_batch[:, 1:].contiguous().view(-1))
+
+                # Check for NaNs in the loss
+                if torch.isnan(loss):
+                    print("NaN detected in loss")
+                    break
+
                 loss.backward()
-                for name, param in transformer.named_parameters():
-                    if param.grad is not None and torch.isnan(param.grad).any():
-                        print(f"NaN gradient detected in parameter: {name}")
-                torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0) #This is optional - Gradient clipping can prevent gradients from becoming too large, which is another potential cause of NaN loss:
-            else:
-                print("NaN loss detected")
-                break
-            print(f"Loss: {loss.item()}")
-            pbar.set_postfix({'Loss': loss.item()})
-            pbar.update()
 
-    print(f"Epoch {epoch+1} completed, Loss: {loss.item()}")  
-'''
+                # Monitor gradients
+                #for name, param in transformer.named_parameters():
+                    #if param.grad is not None:
+                    # print(f"Gradient of {name}: {param.grad.norm()}")
+
+                #torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0) # Clip gradients, this is optional
+                optimizer.step()
+
+                epoch_loss += loss.item()
+                pbar.set_postfix({'Loss': loss.item()})
+                pbar.update()
+
+        # Calculate and print average epoch loss
+        avg_epoch_loss = epoch_loss / len(train_loader)
+        print(f"Epoch {epoch+1} completed, Avg Loss: {avg_epoch_loss}")
+
+        # BLEU Score Evaluation
+        bleu_score = evaluate_model(transformer, val_loader, tokenizer)
+        #print(f"Epoch {epoch+1} BLEU Score: {bleu_score}")
+
+        # Save checkpoint for each epoch
+        checkpoint_path = f"{checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth"
+        torch.save(transformer.state_dict(), checkpoint_path)
+
+        # Save the best model based on average loss
+        if avg_epoch_loss < best_loss:
+            best_loss = avg_epoch_loss
+            torch.save(transformer.state_dict(), f"{checkpoint_dir}/best_model.pth")
 
 
+    # Save the final model
+    torch.save(transformer, 'transformer_model.pth')
+    print("Model saved as transformer_model.pth")
+else:
+    transformer = torch.load('transformer_model.pth')
+    print("Model loaded as transformer_model.pth")
 
-
-
-for epoch in range(10):  # Adjust the number of epochs as needed
-    with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
-        for src_batch, tgt_batch in train_loader:
-            # Check for NaN in input tensors
-            if torch.isnan(src_batch).any() or torch.isnan(tgt_batch).any():
-                print("NaN detected in input tensors")
-                break
-            #print(src_batch)
-            #print(tgt_batch)
-            optimizer.zero_grad()
-            print()
-            # Forward pass through the model
-            output = transformer(src_batch, tgt_batch[:, :-1])
-
-            # Check for NaN in model output
-            if torch.isnan(output).any():
-                print("NaN detected in model output")
-                break
-
-            # Compute loss
-            loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_batch[:, 1:].contiguous().view(-1))
-
-            # Check loss value before proceeding
-            if torch.isnan(loss).any():
-                print("NaN loss detected, idk y")
-                print(loss)
-                break
-
-            print(f"Loss before backward: {loss.item()}")
-
-            # Backward pass and optimization
-            loss.backward()
-
-            # Optional: Gradient clipping
-            torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0)
-
-            optimizer.step()
-
-            # Update progress bar
-            pbar.set_postfix({'Loss': loss.item()})
-            pbar.update()
-
-    print(f"Epoch {epoch+1} completed, Loss: {loss.item()}")
+# Load the best model
+#transformer.load_state_dict(torch.load(f"{checkpoint_dir}/best_model.pth"))
 
 
 # Load your tokenizer
@@ -417,3 +578,5 @@ print("prompt ready:" + prompt)
 generated_story = GenerateStory.generate_story(transformer, prompt, tokenizer, max_length=100)
 print("story ready")
 print(generated_story)
+
+
