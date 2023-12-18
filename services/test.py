@@ -150,21 +150,22 @@ class CustomTokenizer:
     def __init__(self, vocab_file):
         with open(vocab_file, 'r') as file:
             data = json.load(file)
-            self.vocab = {item['content']: item['id'] for item in data['added_tokens']}
+            # Load the main vocabulary, not just the added_tokens
+            self.vocab = data['model']['vocab']
             self.inverse_vocab = {v: k for k, v in self.vocab.items()}
 
     def encode(self, text):
-            if isinstance(text, list):
-                # Join the list elements into a single string
-                text = " ".join(text)
-            return [self.vocab.get(token, self.vocab.get('[UNK]')) for token in text.split()]
+        # Adjust this method depending on whether you want word-level or character-level tokenization
+        # For character-level:
+        return [self.vocab.get(char, self.vocab.get('[UNK]')) for char in text]
 
     def decode(self, token_ids):
-        return ' '.join(self.inverse_vocab.get(id, '[UNK]') for id in token_ids)
-    
+        return ''.join(self.inverse_vocab.get(id, '[UNK]') for id in token_ids)
+
     def get_vocab_size(self):
         return len(self.vocab)
-    
+
+'''
 class GenerateStory:
     def generate_story(model, prompt, tokenizer, max_length=50):
         model.eval()
@@ -194,6 +195,33 @@ class GenerateStory:
 
         generated_story = tokenizer.decode(generated_ids)
         return generated_story
+'''    
+
+class GenerateStory:
+    def generate_story(model, prompt, tokenizer, max_length=50):
+        model.eval()
+        
+        # Start with just the first token of the encoded prompt
+        start_token_id = tokenizer.encode(prompt)[0]
+        tgt_input_ids = torch.tensor([[start_token_id]], dtype=torch.long)
+
+        generated_ids = [start_token_id]
+
+        with torch.no_grad():
+            for _ in range(max_length):
+                output = model(tgt_input_ids, tgt_input_ids)
+                next_token_id = output[0, -1].argmax().item()
+
+                # Break if the model starts repeating the same token or generates a [PAD] token
+                if next_token_id == generated_ids[-1] or next_token_id == tokenizer.vocab.get('[PAD]', -1):
+                    break
+
+                generated_ids.append(next_token_id)
+                tgt_input_ids = torch.cat([tgt_input_ids, torch.tensor([[next_token_id]], dtype=torch.long)], dim=-1)
+
+        generated_story = tokenizer.decode(generated_ids)
+        return generated_story
+
 
 # Load and preprocess dataset
 def tokenize_function(examples, max_seq_length=100):
@@ -222,7 +250,7 @@ def tokenize_function(examples, max_seq_length=100):
 dataset = load_dataset("roneneldan/TinyStories")
 #dataset = org_dataset['train'].select(range(100)) 
 
-print(dataset);
+#print(dataset);
 # Select a smaller subset of the dataset
 num_examples = min(100, len(dataset['train']))
 dataset['train'] = dataset['train'].select(range(num_examples))
@@ -230,13 +258,17 @@ dataset['train'] = dataset['train'].select(range(num_examples))
 torch.autograd.set_detect_anomaly(True) # Utilize PyTorch's debugging tools. This can help identify where NaNs are being introduced.
 
 
-print(dataset['train'][0])
+#print(dataset['train'][0])
 tokenizer = CustomTokenizer('tiny_stories_tokenizer.json')
 print("tokenizer ready")
 tokenized_dataset = dataset.map(tokenize_function, batched=True)
+# Add the code here to check the first few samples of tokenized data
 for i in range(5):  # Check first 5 examples
-    print(tokenized_dataset['train'][i])
-print(tokenized_dataset['train'][0]['src'][:10])  # Print first 10 tokens of the first sample
+    print(f"Sample {i}: {tokenized_dataset['train'][i]}")
+
+#for i in range(5):  # Check first 5 examples
+  #  print(tokenized_dataset['train'][i])
+#print(tokenized_dataset['train'][0]['src'][:10])  # Print first 10 tokens of the first sample
 
 
 # DataLoader
@@ -253,6 +285,23 @@ def collate_fn(batch):
 
     return src_batch, tgt_batch
 
+
+
+#tokenizer = CustomTokenizer('tiny_stories_tokenizer.json')
+
+# Test the tokenizer with individual characters
+#for char in ['a', 'b', 'c', ' ']:  # Add more characters to test
+    #encoded = tokenizer.encode(char)
+#    print(f"Character: {char}, Encoded: {encoded}")
+
+# Test with a word
+#encoded = tokenizer.encode("hello")
+#print(f"Word: hello, Encoded: {encoded}")
+
+
+
+
+
 train_loader = data.DataLoader(tokenized_dataset['train'], batch_size=64, shuffle=True, collate_fn=collate_fn)  
 print("train_loader ready")
 
@@ -265,6 +314,7 @@ d_ff = 2048
 max_seq_length = 100
 dropout = 0.1
 
+torch.autograd.set_detect_anomaly(True)
 transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
 print("transformer ready")
 criterion = nn.CrossEntropyLoss(ignore_index=0)
@@ -277,6 +327,7 @@ print("training started")
 def check_nan(tensor):
     return torch.isnan(tensor).any()
 
+'''
 # we like this one
 for epoch in range(1):
     with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
@@ -291,6 +342,7 @@ for epoch in range(1):
             if torch.isnan(output).any() or torch.isnan(tgt_batch[:, 1:]).any():
                 print("NaN detected in model output or target batch")
             loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_batch[:, 1:].contiguous().view(-1))
+            print(loss)
             if not torch.isnan(loss):
                 loss.backward()
                 for name, param in transformer.named_parameters():
@@ -300,11 +352,60 @@ for epoch in range(1):
             else:
                 print("NaN loss detected")
                 break
-
+            print(f"Loss: {loss.item()}")
             pbar.set_postfix({'Loss': loss.item()})
             pbar.update()
 
     print(f"Epoch {epoch+1} completed, Loss: {loss.item()}")  
+'''
+
+
+
+
+
+for epoch in range(10):  # Adjust the number of epochs as needed
+    with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
+        for src_batch, tgt_batch in train_loader:
+            # Check for NaN in input tensors
+            if torch.isnan(src_batch).any() or torch.isnan(tgt_batch).any():
+                print("NaN detected in input tensors")
+                break
+            #print(src_batch)
+            #print(tgt_batch)
+            optimizer.zero_grad()
+            print()
+            # Forward pass through the model
+            output = transformer(src_batch, tgt_batch[:, :-1])
+
+            # Check for NaN in model output
+            if torch.isnan(output).any():
+                print("NaN detected in model output")
+                break
+
+            # Compute loss
+            loss = criterion(output.contiguous().view(-1, tgt_vocab_size), tgt_batch[:, 1:].contiguous().view(-1))
+
+            # Check loss value before proceeding
+            if torch.isnan(loss).any():
+                print("NaN loss detected, idk y")
+                print(loss)
+                break
+
+            print(f"Loss before backward: {loss.item()}")
+
+            # Backward pass and optimization
+            loss.backward()
+
+            # Optional: Gradient clipping
+            torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0)
+
+            optimizer.step()
+
+            # Update progress bar
+            pbar.set_postfix({'Loss': loss.item()})
+            pbar.update()
+
+    print(f"Epoch {epoch+1} completed, Loss: {loss.item()}")
 
 
 # Load your tokenizer
