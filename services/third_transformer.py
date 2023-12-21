@@ -12,6 +12,7 @@ import torch
 import json
 from datasets import load_dataset
 from transformers import PreTrainedTokenizerFast
+import psutil
 
 
 class EncoderDecorder(nn.Module):
@@ -133,6 +134,9 @@ class DecoderLayer(nn.Module):
         attn_shape = (1, size, size)
         subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype("uint8")
         return torch.from_numpy(subsequent_mask)==0
+        #attn_shape = (1, size, size)
+        #subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.bool)
+        #return subsequent_mask == 0
 
 class Attention(nn.Module):
     def attention(query, key, value, mask=None, dropout=None):
@@ -249,11 +253,11 @@ class Batch():
     def make_std_mask(tgt, pad):
         # Create a mask to hide padding and future words.
         tgt_mask = (tgt!=pad).unsqueeze(-2)
-        tgt_mask = tgt_mask & Variable(subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
+        tgt_mask = tgt_mask & Variable(DecoderLayer.subsequent_mask(tgt.size(-1)).type_as(tgt_mask.data))
         return tgt_mask
     
 class TrainModel():
-    def run_epoch(data_iter, model, loss_compute):
+    def run_epoch(data_iter, model, loss_compute):  
         # Standard Training and Logging Function
         # Generate a training and scoring function to keep track of loss.
         start = time.time()
@@ -261,6 +265,8 @@ class TrainModel():
         total_loss = 0
         tokens = 0
         for i, batch in enumerate(data_iter):
+            Helper.print_memory_usage()
+            print(i)
             out = model.forward(batch.src, batch.trg, batch.src_mask, batch.trg_mask)
             loss = loss_compute(out, batch.trg_y, batch.ntokens)
             total_loss += loss
@@ -273,7 +279,6 @@ class TrainModel():
                 tokens = 0
         return total_loss/total_tokens
 
-
     def batch_size_fn(new, count, sofar):
         # Keep augmenting batch and calculate total number of tokens + padding.
         global max_src_in_batch, max_tgt_in_batch
@@ -285,6 +290,19 @@ class TrainModel():
         src_elements = count*max_src_in_batch
         tgt_elements = count*max_tgt_in_batch
         return max(src_elements, tgt_elements)
+    
+    def greedy_decode(model, src, src_mask, max_len, start_symbol):
+        # Greedy decode function.
+        memory = model.encode(src, src_mask)
+        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src.data)
+        for i in range(max_len-1):
+            #out = model.decode(memory, src_mask, Variable(ys), Variable(subsequent_mask(ys.size(1)).type_as(src.data)))
+            out = model.decode(memory, src_mask, Variable(ys), Variable(DecoderLayer.subsequent_mask(ys.size(1)).type_as(src.data)))
+            prob = model.generator(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
+            next_word = next_word.data[0]
+            ys = torch.cat([ys, torch.ones(1, 1).type_as(src.data).fill_(next_word)], dim=1)
+        return ys
 
 class NoamOpt():
     # This is the optimizer.
@@ -356,4 +374,181 @@ class SimpleLossCompute():
             self.opt.optimizer.zero_grad()
         return loss.data.item()*norm.float()
     
+'''
+class MyIterator(data.Iterator):
+    # MyIterator class to make sure the 'pad' token is at the end of the sentence.
+    def create_batches(self):
+        if self.train:
+            def pool(d, random_shuffler):
+                for p in data.batch(d, self.batch_size*100):
+                    p_batch = data.batch(sorted(p, key=self.sort_key), self.batch_size, self.batch_size_fn)
+                    for b in random_shuffler(list(p_batch)):
+                        yield b
+            self.batches = pool(self.data(), self.random_shuffler)
+        else:
+            self.batches = []
+            for b in data.batch(self.data(), self.batch_size, self.batch_size_fn):
+                self.batches.append(sorted(b, key=self.sort_key))
+'''
+
+class CustomTokenizer:
+    def __init__(self, vocab_file):
+        with open(vocab_file, 'r') as file:
+            data = json.load(file)
+            # Load the main vocabulary, not just the added_tokens
+            self.vocab = data['model']['vocab']
+            self.inverse_vocab = {v: k for k, v in self.vocab.items()}
+
+    def encode(self, text):
+        # Adjust this method depending on whether you want word-level or character-level tokenization
+        # For character-level:
+        return [self.vocab.get(char, self.vocab.get('[UNK]')) for char in text]
+
+    def decode(self, token_ids):
+        return ''.join(self.inverse_vocab.get(id, '[UNK]') for id in token_ids)
+
+    def get_vocab_size(self):
+        return len(self.vocab)
+    
+    def tokenize_fn(examples):
+        return {
+            'src': [tokenizer.encode(sentence) for sentence in examples['text']],  # Replace 'source_column_name' with actual column name
+            #'tgt': [tokenizer.encode(sentence) for sentence in examples['target_column_name']]   # Replace 'target_column_name' with actual column name
+        }
+    
+class Helper():
+    def get_device():
+        # Check whether GPU is available and use it if yes.
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    '''
+    #This function is crucial for converting your tokenized dataset into a format that can be processed by the TrainModel.run_epoch function.
+    def data_generator(tokenized_dataset, batch_size, device):
+        # Function to yield batches of data
+        for i in range(0, len(tokenized_dataset), batch_size):
+            # Extract a batch of tokenized data
+            batch_data = tokenized_dataset[i:i + batch_size]
+
+            # Debugging print statement
+            print("Batch data example:", batch_data[0])
+
+            # Extracting src and assuming trg is the same as src for this example
+            src_batch = [torch.tensor(item['src']) for item in batch_data]
+            trg_batch = [torch.tensor(item['src']) for item in batch_data]  # Assuming target is same as source
+
+            # Padding the sequences and converting to tensors
+            src_batch = torch.nn.utils.rnn.pad_sequence(src_batch, batch_first=True, padding_value=0).to(device)
+            trg_batch = torch.nn.utils.rnn.pad_sequence(trg_batch, batch_first=True, padding_value=0).to(device)
+
+            yield Batch(src_batch, trg_batch, 0)  # 0 is the padding index
+            '''
+
+    @staticmethod
+    def data_generator(tokenized_dataset, batch_size, device):
+        # Assuming tokenized_dataset is an iterable of dicts with 'src' key
+        batch = []
+        for item in tokenized_dataset:
+            batch.append(item)
+            if len(batch) == batch_size:
+                src_batch = [torch.tensor(d['src']) for d in batch]
+                trg_batch = [torch.tensor(d['src']) for d in batch]  # Replace with trg if available
+
+                src_batch = torch.nn.utils.rnn.pad_sequence(src_batch, batch_first=True, padding_value=0).to(device)
+                trg_batch = torch.nn.utils.rnn.pad_sequence(trg_batch, batch_first=True, padding_value=0).to(device)
+
+                yield Batch(src_batch, trg_batch, 0)  # 0 is the padding index
+                batch = []
+
+        # Handle any remaining items in the batch
+        if batch:
+            src_batch = [torch.tensor(d['src']) for d in batch]
+            trg_batch = [torch.tensor(d['src']) for d in batch]  # Replace with trg if available
+
+            src_batch = torch.nn.utils.rnn.pad_sequence(src_batch, batch_first=True, padding_value=0).to(device)
+            trg_batch = torch.nn.utils.rnn.pad_sequence(trg_batch, batch_first=True, padding_value=0).to(device)
+
+            yield Batch(src_batch, trg_batch, 0)  # 0 is the padding index
+
+    def print_memory_usage():
+        print(f"Current memory usage: {psutil.virtual_memory().percent}%")
+
+    def print_number_epochs():
+        # this lets me know how many loops that will run
+        total_examples = len(tokenized_dataset['train'])  # Total number of examples in the dataset
+        batch_size = 32  # Assuming this is your batch size
+
+        # Calculate the number of iterations
+        num_iterations = total_examples // batch_size
+        if total_examples % batch_size != 0:
+            num_iterations += 1  # Add one more iteration for the last, potentially smaller batch
+
+        print(f"Number of iterations per epoch: {num_iterations}")
+
+class GenerateStory():
+    def generate_story(model, tokenized_prompt, max_length, device, start_symbol):
+        model.eval()  # Set the model to evaluation mode
+
+        src = torch.tensor([tokenized_prompt]).to(device)  # Convert to tensor and add batch dimension
+        src_mask = (src != 0).unsqueeze(-2).to(device)  # Assuming 0 is the padding token
+        output = TrainModel.greedy_decode(model, src, src_mask, max_len=max_length, start_symbol=start_symbol)
+
+        return output
+
+# test this code
+tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
+# Get vocabulary sizes
+src_vocab = tokenizer.get_vocab_size()
+tgt_vocab = tokenizer.get_vocab_size()
+dataset = load_dataset("roneneldan/TinyStories")
+#print("Columns in the dataset:", dataset['train'].column_names)
+num_epochs = 100  # Number of epochs
+N = 6  # Number of layers
+d_model = 512  # Dimension of the model
+d_ff = 2048  # Dimension of feed forward layer
+h = 8  # Number of heads
+dropout = 0.1  # Dropout rate
+# Select a smaller subset of the dataset
+num_examples = min(10, len(dataset['train']))
+dataset['train'] = dataset['train'].select(range(num_examples))
+tokenized_dataset = dataset.map(CustomTokenizer.tokenize_fn, batched=True)
+device = Helper.get_device()
+batch_size = 5 # Set a suitable batch size
+model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
+model = model.to(device) #move model to appropriate device
+# Loss and Optimizer
+criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
+optimizer = NoamOpt.get_std_opt(model)
+print("Dataset example:", tokenized_dataset['train'][0])
+start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
+start_symbol_id = tokenizer.vocab[start_symbol_token]
+print("Start symbol id:", start_symbol_id)
+
+
+trainModel = True
+if (trainModel):
+    Helper.print_number_epochs()
+    # Training loop
+    for epoch in range(num_epochs):
+        model.train()
+        loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
+        TrainModel.run_epoch(Helper.data_generator(tokenized_dataset['train'], batch_size, device), model, loss_compute)
+        model.eval()
+        # Evaluate the model on validation data if available
+        # Save the final model
+        torch.save(model.state_dict(), 'model.pth')
+        print("Model saved as model.pth")
+else:
+    # Assuming model is an instance of the correct class
+    model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
+    model = model.to(device) #move model to appropriate device
+
+    # Load the model
+    model.load_state_dict(torch.load('model.pth'))
+    print("Model loaded from model.pth")
+
+prompt = "One day"  # Your starting text
+print("Prompt:", prompt)
+tokenized_prompt = tokenizer.encode(prompt)
+generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
+generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
+print(generated_story)
 
