@@ -199,7 +199,7 @@ class GenerateStory:
 '''    
 
 
-'''
+
 # this is beam generation
 class GenerateStory:
     @staticmethod
@@ -249,9 +249,10 @@ class GenerateStory:
         print(f"Generated story: {generated_story}")
         return generated_story
 
-'''
+
 
 # this is greedy generation
+'''
 class GenerateStory:
     @staticmethod
     def generate_story(model, prompt, tokenizer, max_length=100):
@@ -282,6 +283,7 @@ class GenerateStory:
         generated_story = tokenizer.decode(seq[0].tolist())
         print(f"Generated story: {generated_story}")
         return generated_story
+'''
 
 
 # Load and preprocess dataset
@@ -313,13 +315,13 @@ dataset = load_dataset("roneneldan/TinyStories")
 
 #print(dataset);
 # Select a smaller subset of the dataset
-#num_examples = min(100, len(dataset['train']))
-#dataset['train'] = dataset['train'].select(range(num_examples))
+num_examples = min(100, len(dataset['train']))
+dataset['train'] = dataset['train'].select(range(num_examples))
 #dataset = large_dataset['train']['text'].select(range(25))  # Adjust the range 
 torch.autograd.set_detect_anomaly(True) # Utilize PyTorch's debugging tools. This can help identify where NaNs are being introduced.
 
 
-#print(dataset['train'][0])
+print(dataset['train'][0])
 tokenizer = CustomTokenizer('tiny_stories_tokenizer.json')
 print("tokenizer ready")
 
@@ -408,6 +410,25 @@ def collate_fn(batch):
 
 
 
+# Sample text to test the tokenizer
+#sample_text = "Hello, this is a test."
+
+# Encode the text
+#encoded_text = tokenizer.encode(sample_text)
+#print(f"Encoded Text: {encoded_text}")
+
+# Decode the encoded text back to text
+#decoded_text = tokenizer.decode(encoded_text)
+#print(f"Decoded Text: {decoded_text}")
+
+# Check if the decoded text matches the original text
+#if decoded_text == sample_text:
+#    print("Tokenizer Test Passed: The decoded text matches the original text.")
+#else:
+#    print("Tokenizer Test Failed: The decoded text does not match the original text.")
+
+
+
 
 
 train_loader = data.DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)  
@@ -484,33 +505,43 @@ def evaluate_model(model, val_loader, tokenizer):
     bleu_score = bleu.corpus_score(hypotheses, [references])
     return bleu_score.score
 
+
+
+# Directory for saving model checkpoints
+checkpoint_dir = "model_checkpoints"
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+
+best_loss = float('inf')
+
+# Path to the saved model file (e.g., a .pth or .pt file)
+model_path = 'transformer_model.pth'
+
+# Load the state dictionary into the model if it exists
+if os.path.exists(model_path):
+    transformer = torch.load(model_path, map_location=torch.device('cpu'))
+    print("Model loaded successfully.")
+else:
+    transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
+    print("No saved model found. Training from scratch.")
+
+# Transformer model initialization
 createModel = True
+src_vocab_size = tokenizer.get_vocab_size()
+tgt_vocab_size = tokenizer.get_vocab_size()
+d_model = 512
+num_heads = 8
+num_layers = 6
+d_ff = 2048
+max_seq_length = 100
+dropout = 0.1
+
+optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+criterion = nn.CrossEntropyLoss(ignore_index=0)
 
 if (createModel):
-
-    # Directory for saving model checkpoints
-    checkpoint_dir = "model_checkpoints"
-    if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-
-    best_loss = float('inf')
-
-    # Transformer model initialization
-    src_vocab_size = tokenizer.get_vocab_size()
-    tgt_vocab_size = tokenizer.get_vocab_size()
-    d_model = 512
-    num_heads = 8
-    num_layers = 6
-    d_ff = 2048
-    max_seq_length = 100
-    dropout = 0.1
-
-    transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout)
-    optimizer = optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
-    criterion = nn.CrossEntropyLoss(ignore_index=0)
-
     # Training loop
-    num_epochs = 100
+    num_epochs = 3
     for epoch in range(num_epochs):
         epoch_loss = 0
         with tqdm(total=len(train_loader), desc=f"Epoch {epoch+1}") as pbar:
@@ -533,7 +564,7 @@ if (createModel):
                     #if param.grad is not None:
                     # print(f"Gradient of {name}: {param.grad.norm()}")
 
-                #torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0) # Clip gradients, this is optional
+                torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0) # Clip gradients, this is optional
                 optimizer.step()
 
                 epoch_loss += loss.item()
@@ -546,7 +577,7 @@ if (createModel):
 
         # BLEU Score Evaluation
         bleu_score = evaluate_model(transformer, val_loader, tokenizer)
-        #print(f"Epoch {epoch+1} BLEU Score: {bleu_score}")
+        print(f"Epoch {epoch+1} BLEU Score: {bleu_score}")
 
         # Save checkpoint for each epoch
         checkpoint_path = f"{checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth"
@@ -557,13 +588,12 @@ if (createModel):
             best_loss = avg_epoch_loss
             torch.save(transformer.state_dict(), f"{checkpoint_dir}/best_model.pth")
 
-
-    # Save the final model
+        # Save the final model
     torch.save(transformer, 'transformer_model.pth')
     print("Model saved as transformer_model.pth")
-else:
-    transformer = torch.load('transformer_model.pth')
-    print("Model loaded as transformer_model.pth")
+#else:
+    #transformer = torch.load('transformer_model.pth')
+    #print("Model loaded as transformer_model.pth")
 
 # Load the best model
 #transformer.load_state_dict(torch.load(f"{checkpoint_dir}/best_model.pth"))
@@ -573,7 +603,7 @@ else:
 #tokenizer = CustomTokenizer('tiny_stories_tokenizer.json')
 
 # Example usage
-prompt = "Once upon a time"
+prompt = "One day, a little girl named Lily found a needle in her room."
 print("prompt ready:" + prompt)
 generated_story = GenerateStory.generate_story(transformer, prompt, tokenizer, max_length=100)
 print("story ready")

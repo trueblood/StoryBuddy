@@ -500,18 +500,18 @@ src_vocab = tokenizer.get_vocab_size()
 tgt_vocab = tokenizer.get_vocab_size()
 dataset = load_dataset("roneneldan/TinyStories")
 #print("Columns in the dataset:", dataset['train'].column_names)
-num_epochs = 100  # Number of epochs
+num_epochs = 1000  # Number of epochs
 N = 6  # Number of layers
 d_model = 512  # Dimension of the model
 d_ff = 2048  # Dimension of feed forward layer
 h = 8  # Number of heads
 dropout = 0.1  # Dropout rate
 # Select a smaller subset of the dataset
-num_examples = min(10, len(dataset['train']))
+num_examples = min(100, len(dataset['train']))
 dataset['train'] = dataset['train'].select(range(num_examples))
 tokenized_dataset = dataset.map(CustomTokenizer.tokenize_fn, batched=True)
 device = Helper.get_device()
-batch_size = 5 # Set a suitable batch size
+batch_size = 6 # Set a suitable batch size
 model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
 model = model.to(device) #move model to appropriate device
 # Loss and Optimizer
@@ -522,9 +522,12 @@ start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
 start_symbol_id = tokenizer.vocab[start_symbol_token]
 print("Start symbol id:", start_symbol_id)
 
+trainModel = False
 
-trainModel = True
 if (trainModel):
+    # Load the model
+    model.load_state_dict(torch.load('model.pth'))
+    print("Model loaded from model.pth")
     Helper.print_number_epochs()
     # Training loop
     for epoch in range(num_epochs):
@@ -545,7 +548,7 @@ else:
     model.load_state_dict(torch.load('model.pth'))
     print("Model loaded from model.pth")
 
-prompt = "One day"  # Your starting text
+prompt = "Lilly wanted to go to the mall"  # Your starting text
 print("Prompt:", prompt)
 tokenized_prompt = tokenizer.encode(prompt)
 generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
