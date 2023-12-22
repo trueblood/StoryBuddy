@@ -7,11 +7,6 @@ from PositionalEncoding import PositionalEncoding
 from api.models.EncoderLayer import EncoderLayer
 from DecoderLayer import DecoderLayer
 
-
-
-
-
-    
 class Transformer(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout):
         super(Transformer, self).__init__()

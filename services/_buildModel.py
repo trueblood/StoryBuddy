@@ -14,14 +14,15 @@ from datasets import load_dataset
 #from transformers import PreTrainedTokenizerFast
 import psutil
 import random
-
-
-
-
-    
-
-
-    
+from models import customTokenizer as CustomTokenizer
+import helper as Helper
+from model import makeModel as MakeModel
+from model import labelSmoothing as LabelSmoothing
+from model import noamOpt as NoamOpt
+from model import simpleLossCompute as SimpleLossCompute
+from model import trainModel as TrainModel
+from model import generateStory as GenerateStory
+   
 '''
 class MyIterator(data.Iterator):
     # MyIterator class to make sure the 'pad' token is at the end of the sentence.
@@ -38,12 +39,6 @@ class MyIterator(data.Iterator):
             for b in data.batch(self.data(), self.batch_size, self.batch_size_fn):
                 self.batches.append(sorted(b, key=self.sort_key))
 '''
-
-
-    
-
-
-
 
 # test this code
 tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
@@ -75,8 +70,6 @@ print("Dataset example:", tokenized_dataset['train'][0])
 start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
 start_symbol_id = tokenizer.vocab[start_symbol_token]
 print("Start symbol id:", start_symbol_id)
-
-
 
 trainModel = False
 
