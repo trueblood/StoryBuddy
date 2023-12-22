@@ -4,14 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math, copy, time 
 from torch.autograd import Variable
-import matplotlib.pyplot as plt
-import seaborn
+#import matplotlib.pyplot as plt
+#import seaborn
 #searborn.set_context(context="talk")
 #%matplotlib inline
 import torch
 import json
 from datasets import load_dataset
-from transformers import PreTrainedTokenizerFast
+#from transformers import PreTrainedTokenizerFast
 import psutil
 
 
@@ -419,7 +419,9 @@ class CustomTokenizer:
 class Helper():
     def get_device():
         # Check whether GPU is available and use it if yes.
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device}")
+        return device
     '''
     #This function is crucial for converting your tokenized dataset into a format that can be processed by the TrainModel.run_epoch function.
     def data_generator(tokenized_dataset, batch_size, device):
@@ -471,10 +473,10 @@ class Helper():
     def print_memory_usage():
         print(f"Current memory usage: {psutil.virtual_memory().percent}%")
 
-    def print_number_epochs():
+    def print_number_epochs(batchSize):
         # this lets me know how many loops that will run
         total_examples = len(tokenized_dataset['train'])  # Total number of examples in the dataset
-        batch_size = 32  # Assuming this is your batch size
+        batch_size = batchSize 
 
         # Calculate the number of iterations
         num_iterations = total_examples // batch_size
@@ -500,14 +502,14 @@ src_vocab = tokenizer.get_vocab_size()
 tgt_vocab = tokenizer.get_vocab_size()
 dataset = load_dataset("roneneldan/TinyStories")
 #print("Columns in the dataset:", dataset['train'].column_names)
-num_epochs = 1000  # Number of epochs
+num_epochs = 100  # Number of epochs
 N = 6  # Number of layers
 d_model = 512  # Dimension of the model
 d_ff = 2048  # Dimension of feed forward layer
 h = 8  # Number of heads
 dropout = 0.1  # Dropout rate
 # Select a smaller subset of the dataset
-num_examples = min(100, len(dataset['train']))
+num_examples = min(10000, len(dataset['train']))
 dataset['train'] = dataset['train'].select(range(num_examples))
 tokenized_dataset = dataset.map(CustomTokenizer.tokenize_fn, batched=True)
 device = Helper.get_device()
@@ -522,13 +524,13 @@ start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
 start_symbol_id = tokenizer.vocab[start_symbol_token]
 print("Start symbol id:", start_symbol_id)
 
-trainModel = False
+trainModel = True
 
 if (trainModel):
     # Load the model
     model.load_state_dict(torch.load('model.pth'))
     print("Model loaded from model.pth")
-    Helper.print_number_epochs()
+    Helper.print_number_epochs(batch_size)
     # Training loop
     for epoch in range(num_epochs):
         model.train()

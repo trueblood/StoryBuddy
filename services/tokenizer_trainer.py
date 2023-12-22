@@ -20,7 +20,7 @@ def train_and_save_tokenizer(dataset_name, output_file):
     tokenizer.pre_tokenizer = Whitespace()
 
     # Initialize a trainer for the BPE model
-    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "<start>", "<end>", "<eos>", " ")
+    trainer = BpeTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]", "<start>", "<end>", "<eos>", " "])
 
     # Train the tokenizer
     tokenizer.train(["tiny_stories_corpus.txt"], trainer)
