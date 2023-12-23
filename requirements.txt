@@ -2,3 +2,4 @@ torch==2.1.2
 tokenizers==0.10.1
 datasets==1.5.0
 #pip install flask
+#pip install pymongo
