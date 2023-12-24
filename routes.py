@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from controllers.defaultController import DefaultController
+from api.controllers.defaultController import defaultController as DefaultController
 
 # Create a Blueprint for the routes
 routes = Blueprint('routes', __name__)

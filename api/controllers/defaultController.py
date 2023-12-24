@@ -1,11 +1,10 @@
 import torch
-from services import GenerateStory
-from models import CustomTokenizer
-from models import makeModel as MakeModel
-from services import Helper
+from services.generateStory import GenerateStory
+from ..models.customTokenizer import CustomTokenizer
+from services.helper import Helper
 import requests
 
-class StoryController:
+class defaultController():
     def __init__(self):
         self.story_generator = GenerateStory()
 

@@ -6,7 +6,7 @@ import math, copy, time
 from torch.autograd import Variable
 import torch
 from datasets import load_dataset
-from services import Helper
+from services import helper as Helper
 
 class TrainModel():
     def run_epoch(data_iter, model, loss_compute):  

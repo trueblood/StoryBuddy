@@ -6,7 +6,7 @@ import math, copy, time
 from torch.autograd import Variable
 import torch
 from datasets import load_dataset
-import attention as attention
+import .models.attention as Attention
 import positionwiseFeedForward as PositionwiseFeedForward
 import positionalEncoding as PositionalEncoding
 import encoder as Encoder
