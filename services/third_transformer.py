@@ -1,6 +1,7 @@
 import numpy as np
 import torch
-import torch.nn as nn, optim
+import torch.nn as nn
+import torch.optim as optim
 import torch.nn.functional as F
 import math, copy, time 
 from torch.autograd import Variable
@@ -513,13 +514,22 @@ dropout = 0.1  # Dropout rate
 device = Helper.get_device()
 start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
 start_symbol_id = tokenizer.vocab[start_symbol_token]
-createModel = True
+createModel = False
+# Initialize model to None
+model = None
 
 while (i < maxLoopNumber):
     if (createModel):
         # Create model
+        print("Creating a new model...")
         model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
         model = model.to(device)
+    else:
+        # Load the model
+        model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
+        model = model.to(device)
+        model.load_state_dict(torch.load('model.pth'))
+        print("Model loaded from model.pth")
 
     if (trainModel): 
         print("Loop number:", i)
@@ -538,28 +548,15 @@ while (i < maxLoopNumber):
         
         # This is known as "incremental learning" or "fine-tuning on new data". 
         # Freeze layers that you don't want to train
-        for param in model.parameters():
-            param.requires_grad = False
+        #for param in model.parameters():
+         #   param.requires_grad = False
         # Unfreeze the layers you want to fine-tune (example given)
         # for param in model.layer_you_want_to_train.parameters():
         #     param.requires_grad = True
             
-        # Add new layers for fine-tuning
-        num_new_classes = len(num_examples) # Example for binary classification. Adjust according to your new dataset, i think it means number of rows
-        num_features = model.fc.in_features  # Example for models like ResNet. Adjust according to your model architecture.
-        model.fc = nn.Linear(num_features, num_new_classes)  # Replace with the number of classes in your new dataset, FC is  final fully connected (fc) layer 
-
-        # Loss and Optimizer for the new layers
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.fc.parameters(), lr=0.001)  # Optimizing only the parameters of the new layer
-
         # Loss and Optimizer
         criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
         optimizer = NoamOpt.get_std_opt(model)
-
-        # Load the model
-        model.load_state_dict(torch.load('model.pth'))
-        print("Model loaded from model.pth")
         
         # Helper function to print number of epochs
         Helper.print_number_epochs(batch_size)
