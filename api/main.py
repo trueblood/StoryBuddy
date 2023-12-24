@@ -1,7 +1,11 @@
 from flask import Flask, jsonify
 from controllers.defaultController import DefaultController
+from routes import routes
 
 app = Flask(__name__)
+
+# Register the routes Blueprint
+app.register_blueprint(routes)
 
 default_controller = DefaultController()
 

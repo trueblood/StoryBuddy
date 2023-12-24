@@ -3,6 +3,7 @@ from services import GenerateStory
 from models import CustomTokenizer
 from models import makeModel as MakeModel
 from services import Helper
+import requests
 
 class StoryController:
     def __init__(self):
@@ -20,3 +21,21 @@ class StoryController:
         generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=max_length, device=device, start_symbol=start_symbol_id)
         generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
         return generated_story
+    
+    def verify_recaptcha(recaptcha_response):
+        secret_key = '6LcyVTspAAAAAGKNyj8t9t_SBdnsT7OCCUWjEup4'  # Replace with your secret key
+        data = {
+            'secret': secret_key,
+            'response': recaptcha_response
+        }
+        response = requests.post('https://www.google.com/recaptcha/api/siteverify', data=data)
+        result = response.json()
+        return result.get('success', False)
+
+    # In your route handling the form submission
+   # @app.route('/fetch_data', methods=['POST'])
+   # def handle_form_submission():
+   #     data = request.json
+   #     recaptcha_response = data.get('recaptcha_response')
+   #     if not verify_recaptcha(recaptcha_response):
+   #         return jsonify({'error': 'Invalid reCAPTCHA. Please try again.'}), 400
