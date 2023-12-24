@@ -3,3 +3,5 @@ tokenizers==0.10.1
 datasets==1.5.0
 #pip install flask
 #pip install pymongo
+#$ python -m pip install --upgrade pymongo
+
