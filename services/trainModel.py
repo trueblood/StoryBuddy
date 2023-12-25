@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import torch
 from datasets import load_dataset
 from services import helper as Helper
+from api.models.decoder import DecoderLayer
 
 class TrainModel():
     def run_epoch(data_iter, model, loss_compute):  

@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch
-import clones as Clones
-import layerNorm as LayerNorm
-import sublayerConnection as SublayerConnection
+from .clones import Clones
+from .layerNorm import LayerNorm
+from .sublayerConnection import SublayerConnection
 
 class Decoder(nn.Module):
     # Generic N layer decoder with masking.

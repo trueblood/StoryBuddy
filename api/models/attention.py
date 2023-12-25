@@ -5,7 +5,8 @@ import torch.nn.functional as F
 import math
 from torch.autograd import Variable
 import torch
-import clones as Clones
+#rom . import clones as Clones
+from .clones import Clones 
 
 class Attention(nn.Module):
     def attention(query, key, value, mask=None, dropout=None):

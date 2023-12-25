@@ -1,15 +1,14 @@
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-import encoder as Encoder
-import clones as Clones
-import layerNorm as LayerNorm
-import sublayerConnection as SublayerConnection
+from .clones import Clones
+from .layerNorm import LayerNorm
+from .sublayerConnection import SublayerConnection
 
 class EncoderDecorders(nn.Module):
     # A standard Encoder-Decoder architecture. Base for this and many other models.
     def __init__(self, encoder, decoder, src_embed, tgt_embed, generator):
-        super(encoder.EncoderDecorder, self).__init__()
+        super(EncoderDecorders, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.src_embed = src_embed
@@ -45,7 +44,8 @@ class EncoderLayer(nn.Module):
         super(EncoderLayer, self).__init__()
         self.self_attn = self_attn
         self.feed_forward = feed_forward
-        self.sublayer = Clones.clones(SublayerConnection(size, dropout), 2)
+        sublayer = SublayerConnection(size, dropout)
+        self.sublayer = Clones.clones(sublayer, 2)
         self.size = size
 
     def forward(self, x, mask):
