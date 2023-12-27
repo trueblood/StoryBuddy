@@ -521,7 +521,7 @@ model = None
 while (i < maxLoopNumber):
     if (createModel):
         # Create model
-        print("Creating a new model...")
+        print("Creating a new model...")    
         model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
         model = model.to(device)
     else:
