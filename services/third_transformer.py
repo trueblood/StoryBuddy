@@ -499,7 +499,7 @@ class GenerateStory():
         return output
 
 i = 0
-maxLoopNumber = 5
+maxLoopNumber = 10
 trainModel = True
 tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
 # Get vocabulary sizes
@@ -537,7 +537,7 @@ while (i < maxLoopNumber):
         # Load and prepare dataset
         org_dataset = load_dataset("roneneldan/TinyStories")
         dataset = org_dataset.shuffle() #shuffle
-        num_examples = min(250, len(dataset['train']))
+        num_examples = min(100, len(dataset['train']))
         dataset['train'] = dataset['train'].select(range(num_examples))
         tokenized_dataset = dataset.map(CustomTokenizer.tokenize_fn, batched=True)
         print("Dataset example:", tokenized_dataset['train'][0])
@@ -584,10 +584,10 @@ while (i < maxLoopNumber):
         break
 
 print(torch.cuda.is_available())
-prompt = "Lilly wanted to"  # Your starting text
+prompt = "Tim wanted to"  # Your starting text
 print("Prompt:", prompt)
 tokenized_prompt = tokenizer.encode(prompt)
-generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=300, device=device, start_symbol=start_symbol_id)
+generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
 generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
 print(generated_story)
 
