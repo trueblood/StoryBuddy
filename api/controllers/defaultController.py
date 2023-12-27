@@ -12,11 +12,16 @@ class defaultController():
         self.story_generator = GenerateStory()
 
     def generate_story(self, prompt, max_length, recaptcha_response):
+        try:
+            #prompt = 'Once upon a time'
+            #max_length = 100
         #recaptcha_response = self.verify_recaptcha(recaptcha_response)
         #if recaptcha_response:
             device = Helper.get_device()
             tokenizer_path = os.path.join(current_app.root_path, 'services', 'tiny_stories_tokenizer.json')
             tokenizer = CustomTokenizer(tokenizer_path)
+            #tokenizer_path = os.path.abspath('/media/squeebit/ExternalSSD/Tokenizes/tiny_stories_tokenizer.json')
+            #tokenizer = CustomTokenizer(tokenizer_path)
             start_symbol_token = '<start>'
             start_symbol_id = tokenizer.vocab[start_symbol_token]
 
@@ -33,7 +38,10 @@ class defaultController():
 
             # Load the model 
             model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
-            model_path = os.path.abspath('/media/squeebit/ExternalSSD/Models/model.pth')
+            #model_path = os.path.abspath('/media/squeebit/ExternalSSD/Models/model.pth')
+            model_path = os.path.join(current_app.root_path, 'services', 'model.pth')
+
+
             #model = torch.load(model_path)
             #model = torch.load_state_dict(torch.load('model.pth'))
             #model.load_state_dict(torch.load('model.pth'))
@@ -60,7 +68,7 @@ class defaultController():
                 print(f"An error occurred: {e}")
             model = model.to(device) #move model to appropriate device
             model.eval()
-            #print(f"Model loaded from {model_path}")
+            print(f"Model loaded from {model_path}")
             
             # Process the prompt
             tokenized_prompt = tokenizer.encode(prompt)
@@ -68,7 +76,10 @@ class defaultController():
             generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
             return generated_story
         #else:
-         #   return "Failed captcha"
+         #  return "Failed captcha"
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return f"An error occurred: {e}"
     
     def verify_recaptcha(self, recaptcha_response):
         print(recaptcha_response)
