@@ -9,7 +9,7 @@ from sklearn.model_selection import KFold
 
 
 # Load the spaCy model for English
-#nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")
 
 # Define keywords for custom tags
 keywords = {
@@ -27,8 +27,7 @@ keywords = {
 }
 
 # Function to identify custom tags based on keywords
-# Uncomment and implement this function if you need to use it
-'''
+
 def identify_custom_tags(text, keywords):
     # Process the text with spaCy
     doc = nlp(text)
@@ -38,7 +37,7 @@ def identify_custom_tags(text, keywords):
             if token.lemma_ in keyword_list:
                 tags.append(tag)
     return list(set(tags))
-'''
+
 
 # Function to clean and split text into sections
 def split_text_into_sections(text, min_length=1000, max_length=2000):
@@ -82,6 +81,7 @@ def extract_content(text, tag):
     pattern = re.compile(r'<{}>(.*?)</{}>'.format(tag, tag), re.DOTALL)
     return pattern.findall(text)
 
+'''
 def create_kfold_datasets(file_path, keywords, k=5):
     # Load the book text
     book_text = load_text(file_path)
@@ -104,7 +104,8 @@ def create_kfold_datasets(file_path, keywords, k=5):
         fold_datasets.append(fold_dataset)
 
     return fold_datasets  # Returns a list of dictionaries for each fold
-
+'''
+'''
 # Function to create the dataset
 def create_dataset(file_path, keywords):
     # Load the book text
@@ -148,7 +149,7 @@ def create_dataset(file_path, keywords):
     }
 
     return json.dumps(dataset, indent=4, ensure_ascii=False)
-
+'''
 def create_kfold_datasets(file_path, keywords, k=5):
     # Load the book text
     book_text = load_text(file_path)
@@ -186,8 +187,8 @@ def process_chapters(chapters, keywords):
         sections = split_text_into_sections(chapter_text)
 
         for section in sections:
-            # Here you can add your logic to identify tags based on keywords
-            tags = []  # Placeholder for the actual tag identification logic
+            # Use the identify_custom_tags function to tag the section
+            tags = identify_custom_tags(section, keywords)
 
             processed_data.append({
                 'chapter': chapter['chapter'],
