@@ -80,34 +80,29 @@ def extract_content(text, tag):
     pattern = re.compile(r'<{}>(.*?)</{}>'.format(tag, tag), re.DOTALL)
     return pattern.findall(text)
 
-def create_kfold_datasets(file_path, keywords, k=5):
+def create_kfold_datasets(file_path, k=5):
     # Load the book text
     book_text = load_text(file_path)
-    metadata, chapters = extract_metadata_and_chapters(book_text)  # Assuming this function extracts metadata and chapters
+    metadata = create_metadata(book_text)
+    chapters = create_chapters(book_text)
 
     kf = KFold(n_splits=k)
     fold_datasets = []
-
     for train_index, test_index in kf.split(chapters):
         train_chapters = [chapters[i] for i in train_index]
         test_chapters = [chapters[i] for i in test_index]
 
-        train_dataset = create_dataset(train_chapters, metadata, keywords)
-        test_dataset = create_dataset(test_chapters, metadata, keywords)
+        train_dataset = create_dataset(train_chapters, metadata)
+        test_dataset = create_dataset(test_chapters, metadata)
 
         fold_dataset = {
             'train': train_dataset,
             'test': test_dataset
         }
         fold_datasets.append(fold_dataset)
-
     return fold_datasets  # Returns a list of dictionaries for each fold
 
-# Function to create the dataset
-def create_dataset(file_path, keywords):
-    # Load the book text
-    book_text = load_text(file_path)
-
+def create_metadata(book_text):
     # Extract metadata using the custom tags
     metadata = {
         'author': extract_content(book_text, 'a')[0].strip() if extract_content(book_text, 'a') else 'Unknown',
@@ -116,11 +111,16 @@ def create_dataset(file_path, keywords):
         'source': extract_content(book_text, 's')[0].strip() if extract_content(book_text, 's') else 'Unknown',
         'publication_year': extract_content(book_text, 'p')[0].strip() if extract_content(book_text, 'p') else 'Unknown'
     }
-    
+    return metadata
+
+def create_chapters(book_text):
     # Extract chapters
     chapters_text = extract_content(book_text, 'c')
     chapters = [{'chapter': idx + 1, 'text': chapter.strip()} for idx, chapter in enumerate(chapters_text)]
+    return chapters
 
+# Function to create the dataset
+def create_dataset(metaData, chapters):
     # Process each chapter and identify tags
     chapter_data = []
     for i, chapter in enumerate(chapters):
@@ -137,7 +137,7 @@ def create_dataset(file_path, keywords):
 
    # Package the data into JSON structure
     dataset = {
-        'metadata': metadata,
+        'metadata': metaData,
         'data': {
             'training': chapter_data,
             'validation': [],
@@ -150,19 +150,19 @@ def create_dataset(file_path, keywords):
 # Specify the path to your .txt file
 file_path = Path('../books/pg28587.txt')
 
-# Check if the file exists and create the dataset
+# Check if the file exists and create the k-fold datasets
 if not file_path.is_file():
     print(f"The file {file_path} does not exist.")
 else:
-    json_dataset = create_dataset(file_path, keywords)
-    # Get the path to the "datasets" folder
+    print(f"Creating datasets using the file at {file_path}")
+    fold_datasets = create_kfold_datasets(file_path, k=5)
+    #print(f"Created {len(fold_datasets)} datasets")
     datasets_folder = os.path.join(os.path.dirname(file_path), "datasets")
-
-    # Create the "datasets" folder if it doesn't exist
     os.makedirs(datasets_folder, exist_ok=True)
 
-    # Set the output file path within the "datasets" folder
-    output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
-    # Save the dataset to a JSON file
-    with open(output_file_path, 'w', encoding='utf-8') as json_file:
-        json_file.write(json_dataset)
+    for i, fold_dataset in enumerate(fold_datasets):
+        #output_file_path = os.path.join(datasets_folder, f"{file_path.stem}_fold_{i}.json")
+        output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
+        with open(output_file_path, 'w', encoding='utf-8') as json_file:
+            json_file.write(json.dumps(fold_dataset, indent=4, ensure_ascii=False))
+            print(f"Dataset written to {output_file_path}")  # Confirm file creation
