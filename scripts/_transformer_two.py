@@ -675,7 +675,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
         #print(generated_story)
 
     model = model.to(device)
-'''
+
     # Loss and Optimizer for this fold
     criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
     optimizer = NoamOpt.get_std_opt(model)
@@ -697,7 +697,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     torch.save(model.state_dict(), f'model_fold{fold+1}.pth')
     print(f"Model for fold {fold+1} saved as model_fold{fold+1}.pth")
 
-'''
+
 
 
 
@@ -721,7 +721,7 @@ for i in range(min(num_items_to_display, len(tokenized_data))):
     print(f"Tags: {tokenized_data[i]['tags']}")
     decoded_text = tokenizer.decode(tokenized_data[i]['encoded_text'])
     print(f"Decoded Text: {decoded_text}\n")
-]ku];kjp[                                  ]
+
 while (i < maxLoopNumber):
     if (createModel):
         # Create model
