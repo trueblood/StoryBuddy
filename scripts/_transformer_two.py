@@ -16,6 +16,8 @@ from datasets import load_dataset
 import psutil
 import random
 from sklearn.model_selection import KFold
+import os
+
 
 class EncoderDecorder(nn.Module):
     # A standard Encoder-Decoder architecture. Base for this and many other models.
@@ -518,6 +520,22 @@ def load_and_preprocess_data(json_file, tokenizer):
 
     return tokenized_data
 
+def load_and_preprocess_data(directory, tokenizer):
+    tokenized_data = []
+
+    for filename in os.listdir(directory):
+        if filename.endswith(".json"):
+            file_path = os.path.join(directory, filename)
+            
+            with open(file_path, 'r') as file:
+                data = json.load(file).get('train', {}).get('data', [])
+                
+                for item in data:
+                    encoded_text = tokenizer.encode(item['text'])
+                    tokenized_data.append({'encoded_text': encoded_text, 'tags': item['tags']})
+
+    return tokenized_data
+
 '''def load_and_preprocess_data(json_file, tokenizer):
     with open(json_file, 'r') as file:
         data = json.load(file)['train']['data']
@@ -557,7 +575,12 @@ createModel = False
 # Initialize model to None
 model = None
 
-tokenized_data = load_and_preprocess_data("dataset_fold1.json", tokenizer)
+# Get the parent directory of the current working directory
+parent_directory = os.path.dirname(os.getcwd())
+# Construct the path
+directory_path = os.path.join(parent_directory, "books", "datasets")
+
+tokenized_data = load_and_preprocess_data(directory_path, tokenizer)
 tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
 batch_size = 1 # Set a suitable batch size
 
