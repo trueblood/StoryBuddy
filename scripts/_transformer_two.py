@@ -579,6 +579,12 @@ def save_checkpoint(model, optimizer, epoch, fold, iteration, max_checkpoints=5)
     print(f"Checkpoint saved to {filename}")
 
 
+def load_checkpoint(model, optimizer, filename):
+    checkpoint = torch.load(filename)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    return checkpoint['epoch']
+
 '''def load_and_preprocess_data(directory, tokenizer):
     tokenized_data = []
     for filename in os.listdir(directory):
@@ -644,6 +650,8 @@ directory_path = os.path.join(parent_directory, "books", "datasets")
 tokenized_data = load_and_preprocess_data(directory_path, tokenizer)
 tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
 batch_size = 1 # Set a suitable batch size
+createModel = False
+
 
 for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     print(f"Running fold {fold + 1}/{k}")
@@ -651,8 +659,14 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     # Split data into training and test set for this fold
     train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
 
-    # Create model
     model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
+
+    if (createModel == False):
+        # Load the model
+        checkpoint = torch.load('checkpoint_fold1_index0.pth')
+        print("Model loaded from checkpoint_fold1_index0.pth")
+        model.load_state_dict(checkpoint['model_state_dict'])
+
     model = model.to(device)
 
     # Loss and Optimizer for this fold
