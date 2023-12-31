@@ -636,8 +636,8 @@ d_ff = 2048  # Dimension of feed forward layer
 h = 8  # Number of heads
 dropout = 0.1  # Dropout rate
 device = Helper.get_device()
-#start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
-#start_symbol_id = tokenizer.vocab[start_symbol_token]
+start_symbol_token = '[CLS]'  # or '[CLS]' depending on your model's training
+start_symbol_id = tokenizer.vocab[start_symbol_token]
 createModel = False
 # Initialize model to None
 model = None
@@ -666,9 +666,16 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
         checkpoint = torch.load('checkpoint_fold1_index0.pth')
         print("Model loaded from checkpoint_fold1_index0.pth")
         model.load_state_dict(checkpoint['model_state_dict'])
+        #print(torch.cuda.is_available())
+        #prompt = "Tim wanted to"  # Your starting text
+        #print("Prompt:", prompt)
+        #tokenized_prompt = tokenizer.encode(prompt)
+        #generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
+        #generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
+        #print(generated_story)
 
     model = model.to(device)
-
+'''
     # Loss and Optimizer for this fold
     criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
     optimizer = NoamOpt.get_std_opt(model)
@@ -690,7 +697,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     torch.save(model.state_dict(), f'model_fold{fold+1}.pth')
     print(f"Model for fold {fold+1} saved as model_fold{fold+1}.pth")
 
-
+'''
 
 
 
@@ -714,7 +721,7 @@ for i in range(min(num_items_to_display, len(tokenized_data))):
     print(f"Tags: {tokenized_data[i]['tags']}")
     decoded_text = tokenizer.decode(tokenized_data[i]['encoded_text'])
     print(f"Decoded Text: {decoded_text}\n")
-
+]ku];kjp[                                  ]
 while (i < maxLoopNumber):
     if (createModel):
         # Create model
