@@ -474,10 +474,20 @@ class Helper():
     def print_memory_usage():
         print(f"Current memory usage: {psutil.virtual_memory().percent}%")
 
-    def print_number_epochs(batchSize, tokenized_dataset):
+    '''def print_number_epochs(batchSize, tokenized_dataset):
         # this lets me know how many loops that will run
         total_examples = len(tokenized_dataset['train'])  # Total number of examples in the dataset
         batch_size = batchSize 
+
+        # Calculate the number of iterations
+        num_iterations = total_examples // batch_size
+        if total_examples % batch_size != 0:
+            num_iterations += 1  # Add one more iteration for the last, potentially smaller batch
+
+        print(f"Number of iterations per epoch: {num_iterations}")'''
+    def print_number_epochs(batch_size, tokenized_dataset):
+        # Calculate the number of iterations needed for each epoch
+        total_examples = len(tokenized_dataset)  # Total number of examples in the dataset
 
         # Calculate the number of iterations
         num_iterations = total_examples // batch_size
@@ -564,6 +574,9 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     # Loss and Optimizer for this fold
     criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
     optimizer = NoamOpt.get_std_opt(model)
+
+    # Helper function to print number of epochs
+    Helper.print_number_epochs(batch_size, tokenized_data)
 
      # Training loop for this fold
     for epoch in range(num_epochs):
