@@ -19,6 +19,7 @@ from sklearn.model_selection import KFold
 import os
 from transformers import BertTokenizer
 from sklearn.metrics import accuracy_score
+import pyamdgpuinfo
 
 
 class EncoderDecorder(nn.Module):
@@ -271,7 +272,7 @@ class TrainModel():
         total_loss = 0
         tokens = 0
         for i, batch in enumerate(data_iter):
-            Helper.print_memory_usage()
+            Helper.print_memory_usage_gpu()
             print(i)
             out = model.forward(batch.src, batch.trg, batch.src_mask, batch.trg_mask)
             loss = loss_compute(out, batch.trg_y, batch.ntokens)
@@ -486,6 +487,12 @@ class Helper():
 
     def print_memory_usage():
         print(f"Current memory usage: {psutil.virtual_memory().percent}%")
+
+    def print_memory_usage_gpu():
+        first_gpu = pyamdgpuinfo.get_gpu(0) # returns a GPUInfo object
+        vram_usage = first_gpu.query_vram_usage()
+        vram_usage_in_gb = vram_usage / (1024 ** 3)
+        print(f"Current GPU memory usage: {vram_usage_in_gb} GB")
 
     '''def print_number_epochs(batchSize, tokenized_dataset):
         # this lets me know how many loops that will run
