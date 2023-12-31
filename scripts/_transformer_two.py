@@ -15,7 +15,7 @@ from datasets import load_dataset
 #from transformers import PreTrainedTokenizerFast
 import psutil
 import random
-
+from sklearn.model_selection import KFold
 
 class EncoderDecorder(nn.Module):
     # A standard Encoder-Decoder architecture. Base for this and many other models.
@@ -520,6 +520,11 @@ def load_and_preprocess_data(json_file, tokenizer):
     return tokenized_data
 '''
 
+# Number of folds
+k = 5
+
+# Create a KFold object
+kf = KFold(n_splits=k, shuffle=True, random_state=42)
 
 tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
 i = 0
@@ -538,11 +543,54 @@ dropout = 0.1  # Dropout rate
 device = Helper.get_device()
 start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
 start_symbol_id = tokenizer.vocab[start_symbol_token]
-createModel = True
+createModel = False
 # Initialize model to None
 model = None
 
 tokenized_data = load_and_preprocess_data("dataset_fold1.json", tokenizer)
+tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
+batch_size = 1 # Set a suitable batch size
+
+for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
+    print(f"Running fold {fold + 1}/{k}")
+    
+    # Split data into training and test set for this fold
+    train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
+
+    # Create model
+    model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
+    model = model.to(device)
+
+    # Loss and Optimizer for this fold
+    criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
+    optimizer = NoamOpt.get_std_opt(model)
+
+     # Training loop for this fold
+    for epoch in range(num_epochs):
+        model.train()
+        loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
+        TrainModel.run_epoch(Helper.data_generator(train_data, batch_size, device), model, loss_compute)
+        model.eval()
+
+        # Optionally, you can evaluate the model on test_data here
+
+    # Save the model for this fold
+    torch.save(model.state_dict(), f'model_fold{fold+1}.pth')
+    print(f"Model for fold {fold+1} saved as model_fold{fold+1}.pth")
+
+
+
+
+
+
+
+
+
+
+
+'''
+
+
 # Check the number of items in the tokenized data
 print(f"Total items in tokenized data: {len(tokenized_data)}")
 
@@ -628,3 +676,4 @@ tokenized_prompt = tokenizer.encode(prompt)
 generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
 generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
 print(generated_story)
+'''
