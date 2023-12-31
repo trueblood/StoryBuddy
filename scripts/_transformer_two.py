@@ -492,7 +492,13 @@ class Helper():
         first_gpu = pyamdgpuinfo.get_gpu(0) # returns a GPUInfo object
         vram_usage = first_gpu.query_vram_usage()
         vram_usage_in_gb = vram_usage / (1024 ** 3)
+        gpu_temp_fahrenheit = first_gpu.query_temperature() * 9/5 + 32
+        gpu_load = first_gpu.query_load()
+        gpu_power = first_gpu.query_power()
         print(f"Current GPU memory usage: {vram_usage_in_gb} GB")
+        print(f"Current GPU Load: {gpu_load}")
+        print(f"Current GPU Power: {gpu_power} W")
+        print(f"Current GPU Temp: {gpu_temp_fahrenheit} F")
 
     '''def print_number_epochs(batchSize, tokenized_dataset):
         # this lets me know how many loops that will run
