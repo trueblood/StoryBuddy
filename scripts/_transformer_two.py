@@ -17,6 +17,7 @@ import psutil
 import random
 from sklearn.model_selection import KFold
 import os
+from transformers import BertTokenizer
 
 
 class EncoderDecorder(nn.Module):
@@ -276,6 +277,9 @@ class TrainModel():
             total_loss += loss
             total_tokens += batch.ntokens
             tokens += batch.ntokens
+            if i == 100:
+                save_checkpoint(model, optimizer, epoch, fold, iteration, i)
+                print("Checkpoint Created: ", i)
             if i%50==1:
                 elapsed = time.time()-start
                 print("Epoch Step: %d Loss: %f Tokens per Sec: %f" % (i, loss/batch.ntokens, tokens/elapsed))
@@ -336,6 +340,12 @@ class NoamOpt():
     
     def get_std_opt(model):
         return NoamOpt(model.src_embed[0].d_model, 2, 4000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+    
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict):
+        self.optimizer.load_state_dict(state_dict)
 
 class LabelSmoothing(nn.Module):
     # Implement label smoothing.
@@ -548,20 +558,69 @@ def load_and_preprocess_data(directory, tokenizer):
     return tokenized_data
 '''
 
+def load_pretrained_tokenizer():
+    # Initialize a pre-trained BERT tokenizer
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    return tokenizer
+
+def save_checkpoint(model, optimizer, epoch, fold, iteration, epoch_int, max_checkpoints=5):
+    #checkpoint_index = (iteration // 100) % max_checkpoints  # Adjust the iteration interval (500 here) as needed
+    filename = f'checkpoint_fold{fold+1}_index{epoch_int}.pth'
+
+    checkpoint = {
+        'epoch': epoch,
+        'iteration': iteration, 
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict()
+    }
+    torch.save(checkpoint, filename)
+    print(f"Checkpoint saved to {filename}")
+
+'''def load_and_preprocess_data(directory, tokenizer):
+    tokenized_data = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".json"):
+            file_path = os.path.join(directory, filename)
+            with open(file_path, 'r') as file:
+                data = json.load(file).get('train', {}).get('data', [])
+                for item in data:
+                    encoded_text = tokenizer.encode(item['text'], add_special_tokens=True)
+                    tokenized_data.append({'encoded_text': encoded_text, 'tags': item['tags']})
+    return tokenized_data
+'''
+'''
+def train(model, train_data, criterion, optimizer, device, batch_size, fold, num_epochs):
+    for epoch in range(num_epochs):
+        model.train()
+        iteration = 0
+        for batch in Helper.data_generator(train_data, batch_size, device):
+            # Perform your training steps here
+            # ...
+
+            # Save a checkpoint every N iterations
+            if iteration % 500 == 0:  # Adjust this value as needed
+                save_checkpoint(model, optimizer, epoch, fold, iteration)
+            iteration += 1
+
+        print(f"Epoch {epoch+1} completed for fold {fold + 1}")
+'''
 # Number of folds
 k = 5
 
 # Create a KFold object
 kf = KFold(n_splits=k, shuffle=True, random_state=42)
 
-tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
+#tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
+tokenizer = load_pretrained_tokenizer()
 i = 0
 maxLoopNumber = 10
 trainModel = True
 #tokenizer = CustomTokenizer("tiny_stories_tokenizer.json")
 # Get vocabulary sizes
-src_vocab = tokenizer.get_vocab_size()
-tgt_vocab = tokenizer.get_vocab_size()
+src_vocab = tokenizer.vocab_size
+tgt_vocab = tokenizer.vocab_size
+print("Vocab size: ", src_vocab)
 num_epochs = 10  # Number of epochs
 N = 6  # Number of layers 
 d_model = 512  # Dimension of the model
@@ -569,8 +628,8 @@ d_ff = 2048  # Dimension of feed forward layer
 h = 8  # Number of heads
 dropout = 0.1  # Dropout rate
 device = Helper.get_device()
-start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
-start_symbol_id = tokenizer.vocab[start_symbol_token]
+#start_symbol_token = '<start>'  # or '[CLS]' depending on your model's training
+#start_symbol_id = tokenizer.vocab[start_symbol_token]
 createModel = False
 # Initialize model to None
 model = None
@@ -602,6 +661,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     Helper.print_number_epochs(batch_size, tokenized_data)
 
      # Training loop for this fold
+    iteration = 0
     for epoch in range(num_epochs):
         model.train()
         loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
