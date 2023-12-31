@@ -154,23 +154,37 @@ def create_kfold_datasets(file_path, keywords, k=5):
     # Load the book text
     book_text = load_text(file_path)
 
+    # Extract metadata
+    metadata = create_metadata(book_text)
+
     # Extract chapters
     chapters_text = extract_content(book_text, 'c')  # Assuming this function works as intended
     chapters = [{'chapter': idx + 1, 'text': chapter.strip()} for idx, chapter in enumerate(chapters_text)]
 
     # Initialize KFold
-    kf = KFold(n_splits=k, shuffle=True, random_state=42)
-
+    kf = KFold(n_splits=k, shuffle=True)
     fold_datasets = []
 
-    for train_index, test_index in kf.split(chapters):
+    #for train_index, test_index in kf.split(chapters):
+    for fold_index, (train_index, test_index) in enumerate(kf.split(chapters)):
+        print(f"Fold {fold_index + 1}:")
+        print("Training chapter indices:", train_index)
+        print("Testing chapter indices:", test_index)
+
         # Splitting chapters into training and testing
         train_chapters = [chapters[i] for i in train_index]
         test_chapters = [chapters[i] for i in test_index]
 
+        # Optionally, print some content of train and test chapters to inspect
+        print("Sample from first training chapter:", train_chapters[0]['text'][:100])  # Print first 100 chars
+        print("Sample from first testing chapter:", test_chapters[0]['text'][:100])  # Print first 100 chars
+
+
         # Create datasets for each fold
-        train_dataset = process_chapters(train_chapters, keywords)
-        test_dataset = process_chapters(test_chapters, keywords)
+        #train_dataset = process_chapters(train_chapters, keywords)
+        #test_dataset = process_chapters(test_chapters, keywords)
+        train_dataset = {'metadata': metadata, 'data': process_chapters(train_chapters, keywords)}
+        test_dataset = {'metadata': metadata, 'data': process_chapters(test_chapters, keywords)}
 
         fold_dataset = {
             'train': train_dataset,
@@ -179,6 +193,17 @@ def create_kfold_datasets(file_path, keywords, k=5):
         fold_datasets.append(fold_dataset)
 
     return fold_datasets
+
+def create_metadata(book_text):
+    # Extract metadata using the custom tags
+    metadata = {
+        'author': extract_content(book_text, 'a')[0].strip() if extract_content(book_text, 'a') else 'Unknown',
+        'title': extract_content(book_text, 't')[0].strip() if extract_content(book_text, 't') else 'Unknown',
+        'genre': extract_content(book_text, 'g')[0].strip() if extract_content(book_text, 'g') else 'Unknown',
+        'source': extract_content(book_text, 's')[0].strip() if extract_content(book_text, 's') else 'Unknown',
+        'publication_year': extract_content(book_text, 'p')[0].strip() if extract_content(book_text, 'p') else 'Unknown'
+    }
+    return metadata
 
 def process_chapters(chapters, keywords):
     processed_data = []
@@ -201,20 +226,23 @@ def process_chapters(chapters, keywords):
 # Specify the path to your .txt file
 file_path = Path('../books/pg28587.txt')
 
+k = 5
 # Check if the file exists and create the dataset
 if not file_path.is_file():
     print(f"The file {file_path} does not exist.")
 else:
     #json_dataset = create_dataset(file_path, keywords)
     # Get the path to the "datasets" folder
-    datasets_folder = os.path.join(os.path.dirname(file_path), "datasets")
+    datasets_training_folder = os.path.join(os.path.dirname(file_path), "datasets_training")
+    datasets_test_folder = os.path.join(os.path.dirname(file_path), "datasets_test")
 
     # Create the "datasets" folder if it doesn't exist
-    os.makedirs(datasets_folder, exist_ok=True)
+    os.makedirs(datasets_training_folder, exist_ok=True)
+    os.makedirs(datasets_test_folder, exist_ok=True)
 
     # Set the output file path within the "datasets" folder
     #output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
-    kfold_datasets = create_kfold_datasets(file_path, keywords, k=5)
+    kfold_datasets = create_kfold_datasets(file_path, keywords, k)
 
     # Save the dataset to a JSON file
     #with open(output_file_path, 'w', encoding='utf-8') as json_file:
@@ -229,7 +257,10 @@ else:
         # Construct the filename for each fold
         base_filename = 'dataset'  # Base name for your files
         filename = f"{base_filename}_fold{fold_index+1}.json"
-        file_path = os.path.join(datasets_folder, filename)
+        if fold_index < (k - 1):
+            file_path = os.path.join(datasets_training_folder, filename)
+        else:
+            file_path = os.path.join(datasets_test_folder, filename)
 
         # Write the fold data to a JSON file
         with open(file_path, 'w', encoding='utf-8') as file:

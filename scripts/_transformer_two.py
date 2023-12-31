@@ -18,6 +18,7 @@ import random
 from sklearn.model_selection import KFold
 import os
 from transformers import BertTokenizer
+from sklearn.metrics import accuracy_score
 
 
 class EncoderDecorder(nn.Module):
@@ -613,6 +614,43 @@ def train(model, train_data, criterion, optimizer, device, batch_size, fold, num
 
         print(f"Epoch {epoch+1} completed for fold {fold + 1}")
 '''
+
+def evaluate_model(model, test_data, criterion, device):
+    model.eval()  # Set the model to evaluation mode
+    total_loss = 0
+    correct_predictions = 0
+    total_predictions = 0
+
+    with torch.no_grad():  # No gradient updates
+        for batch in Helper.data_generator(test_data, batch_size, device):
+            inputs, labels = batch
+            outputs = model(inputs)
+
+            # Calculate loss
+            loss = criterion(outputs, labels)
+            total_loss += loss.item()
+
+            # Calculate accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total_predictions += labels.size(0)
+            correct_predictions += (predicted == labels).sum().item()
+
+    avg_loss = total_loss / len(test_data)
+    accuracy = correct_predictions / total_predictions
+    return avg_loss, accuracy
+
+
+def predict(model, X_test):
+    model.eval()  # Set the model to evaluation mode
+    with torch.no_grad():  # Turn off gradients for validation, saves memory and computations
+        predictions = model(X_test)  # Get the model's predictions
+        # Convert predictions to the desired format, e.g., applying a threshold for classification
+        predicted_labels = torch.argmax(predictions, dim=1)
+    return predicted_labels
+
+def calculate_accuracy(y_true, y_pred):
+    accuracy = accuracy_score(y_true, y_pred)
+    return accuracy
 # Number of folds
 k = 5
 
@@ -645,19 +683,29 @@ model = None
 # Get the parent directory of the current working directory
 parent_directory = os.path.dirname(os.getcwd())
 # Construct the path
-directory_path = os.path.join(parent_directory, "books", "datasets")
+directory_path_for_training = os.path.join(parent_directory, "books", "datasets_training")
+directory_path_for_testing = os.path.join(parent_directory, "books", "datasets_test")
 
-tokenized_data = load_and_preprocess_data(directory_path, tokenizer)
+tokenized_data = load_and_preprocess_data(directory_path_for_training, tokenizer)
+tokenized_data_training = load_and_preprocess_data(directory_path_for_testing, tokenizer)
+
+
+print(len(tokenized_data))
+print(len(tokenized_data_training))
+
+
 tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
+test_data = np.array(tokenized_data_training) # Convert to a NumPy array for easy indexing
 batch_size = 1 # Set a suitable batch size
 createModel = False
+
 
 
 for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     print(f"Running fold {fold + 1}/{k}")
     
     # Split data into training and test set for this fold
-    train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
+    #train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
 
     model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
 
@@ -688,14 +736,23 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     for epoch in range(num_epochs):
         model.train()
         loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
-        TrainModel.run_epoch(Helper.data_generator(train_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
+        TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
         model.eval()
+        # Save the final model
+        torch.save(model.state_dict(), 'model.pth')
+        print("Model saved as model.pth")
+        # Evaluate on test data
+        test_loss, test_accuracy = evaluate_model(model, test_data, criterion, device)
+        print(f"Epoch {epoch+1}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
 
         # Optionally, you can evaluate the model on test_data here
+        #predictions = model.predict(X_test)
+        # Calculate accuracy or other metrics
+        #accuracy = accuracy_score(y_test, predictions)
+        #print(f"Accuracy: {accuracy}")
 
-    # Save the model for this fold
-    torch.save(model.state_dict(), f'model_fold{fold+1}.pth')
-    print(f"Model for fold {fold+1} saved as model_fold{fold+1}.pth")
+        # For a more detailed report
+        #print(classification_report(y_test, predictions))
 
 
 
