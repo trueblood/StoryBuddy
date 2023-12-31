@@ -277,7 +277,7 @@ class TrainModel():
             total_loss += loss
             total_tokens += batch.ntokens
             tokens += batch.ntokens
-            if i == 100:
+            if i % 50 == 0 and i != 0:
                 save_checkpoint(model, optimizer, epoch, fold, iteration, i)
                 print("Checkpoint Created: ", i)
             if i%50==1:
@@ -564,9 +564,10 @@ def load_pretrained_tokenizer():
 
     return tokenizer
 
-def save_checkpoint(model, optimizer, epoch, fold, iteration, epoch_int, max_checkpoints=5):
-    #checkpoint_index = (iteration // 100) % max_checkpoints  # Adjust the iteration interval (500 here) as needed
-    filename = f'checkpoint_fold{fold+1}_index{epoch_int}.pth'
+def save_checkpoint(model, optimizer, epoch, fold, iteration, max_checkpoints=5):
+    # Use modulo operation to cycle through checkpoint indices (0 to max_checkpoints - 1)
+    checkpoint_index = iteration % max_checkpoints
+    filename = f'checkpoint_fold{fold+1}_index{checkpoint_index}.pth'
 
     checkpoint = {
         'epoch': epoch,
@@ -576,6 +577,7 @@ def save_checkpoint(model, optimizer, epoch, fold, iteration, epoch_int, max_che
     }
     torch.save(checkpoint, filename)
     print(f"Checkpoint saved to {filename}")
+
 
 '''def load_and_preprocess_data(directory, tokenizer):
     tokenized_data = []
