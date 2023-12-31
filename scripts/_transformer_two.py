@@ -278,7 +278,7 @@ class TrainModel():
             total_loss += loss
             total_tokens += batch.ntokens
             tokens += batch.ntokens
-            if i % 100 == 0 and i != 0:
+            if i % 1000 == 0 and i != 0:
                 save_checkpoint(model, optimizer, epoch, fold, i)
                 print("Checkpoint Created: ", i)
             if i%50==1:
@@ -435,7 +435,7 @@ class Helper():
     def get_device():
         # Check whether GPU is available and use it if yes.
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        device = torch.device("cpu")
+        #device = torch.device("cpu")
         print(f"Using device: {device}")
         return device
     '''
@@ -742,8 +742,8 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
         torch.save(model.state_dict(), 'model.pth')
         print("Model saved as model.pth")
         # Evaluate on test data
-        test_loss, test_accuracy = evaluate_model(model, test_data, criterion, device)
-        print(f"Epoch {epoch+1}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
+        #test_loss, test_accuracy = evaluate_model(model, test_data, criterion, device)
+        #print(f"Epoch {epoch+1}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
 
         # Optionally, you can evaluate the model on test_data here
         #predictions = model.predict(X_test)
@@ -754,7 +754,12 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
         # For a more detailed report
         #print(classification_report(y_test, predictions))
 
-
+    prompt = "Tim wanted to"  # Your starting text
+    print("Prompt:", prompt)
+    tokenized_prompt = tokenizer.encode(prompt)
+    generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
+    generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
+    print(generated_story)
 
 
 
