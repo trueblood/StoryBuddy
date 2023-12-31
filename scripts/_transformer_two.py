@@ -262,7 +262,7 @@ class Batch():
         return tgt_mask
     
 class TrainModel():
-    def run_epoch(data_iter, model, loss_compute):  
+    def run_epoch(data_iter, model, loss_compute, optimizer, epoch, fold):  
         # Standard Training and Logging Function
         # Generate a training and scoring function to keep track of loss.
         start = time.time()
@@ -277,8 +277,8 @@ class TrainModel():
             total_loss += loss
             total_tokens += batch.ntokens
             tokens += batch.ntokens
-            if i % 50 == 0 and i != 0:
-                save_checkpoint(model, optimizer, epoch, fold, iteration, i)
+            if i % 5 == 0 and i != 0:
+                save_checkpoint(model, optimizer, epoch, fold, i)
                 print("Checkpoint Created: ", i)
             if i%50==1:
                 elapsed = time.time()-start
@@ -681,7 +681,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     for epoch in range(num_epochs):
         model.train()
         loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
-        TrainModel.run_epoch(Helper.data_generator(train_data, batch_size, device), model, loss_compute)
+        TrainModel.run_epoch(Helper.data_generator(train_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
         model.eval()
 
         # Optionally, you can evaluate the model on test_data here
