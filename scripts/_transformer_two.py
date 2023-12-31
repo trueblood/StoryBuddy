@@ -277,7 +277,7 @@ class TrainModel():
             total_loss += loss
             total_tokens += batch.ntokens
             tokens += batch.ntokens
-            if i % 5 == 0 and i != 0:
+            if i % 100 == 0 and i != 0:
                 save_checkpoint(model, optimizer, epoch, fold, i)
                 print("Checkpoint Created: ", i)
             if i%50==1:
