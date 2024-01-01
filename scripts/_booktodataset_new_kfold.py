@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import re
 from sklearn.model_selection import KFold
+import glob
 
 
 
@@ -150,9 +151,9 @@ def create_dataset(file_path, keywords):
 
     return json.dumps(dataset, indent=4, ensure_ascii=False)
 '''
-def create_kfold_datasets(file_path, keywords, k=5):
+def create_kfold_datasets(keywords, k, book):
     # Load the book text
-    book_text = load_text(file_path)
+    book_text = load_text(book.path)
 
     # Extract metadata
     metadata = create_metadata(book_text)
@@ -223,47 +224,68 @@ def process_chapters(chapters, keywords):
             })
     return processed_data
 
+class Book:
+    def __init__(self, path):
+        self.path = path
+        self.filename_with_extension = os.path.basename(path)
+        self.filename = os.path.splitext(os.path.basename(path))[0]
+
 # Specify the path to your .txt file
-file_path = Path('../books/pg28587.txt')
+file = Path('../books/pg28587.txt')
+file_path = os.path.join(os.path.dirname(file), "texts")
+txt_files = glob.glob(os.path.join(file_path, "*.txt"))
+books = [Book(file) for file in txt_files]
 
-k = 5
-# Check if the file exists and create the dataset
-if not file_path.is_file():
-    print(f"The file {file_path} does not exist.")
-else:
-    #json_dataset = create_dataset(file_path, keywords)
-    # Get the path to the "datasets" folder
-    datasets_training_folder = os.path.join(os.path.dirname(file_path), "datasets_training")
-    datasets_test_folder = os.path.join(os.path.dirname(file_path), "datasets_test")
+if len(books) > 0:
+    for book in books:
+        
+        k = 5
+        # Check if the file exists and create the dataset
+        #if not txtFile.is_file():
+        #    print(f"The file {txtFile} does not exist.")
+        #else:
+        #json_dataset = create_dataset(file_path, keywords)
+        # Get the path to the "datasets" folder
 
-    # Create the "datasets" folder if it doesn't exist
-    os.makedirs(datasets_training_folder, exist_ok=True)
-    os.makedirs(datasets_test_folder, exist_ok=True)
+        #texts_folder = os.path.join(os.path.dirname(file_path), "texts")
+        #txt_files = glob.glob(os.path.join(texts_folder, "*.txt"))
 
-    # Set the output file path within the "datasets" folder
-    #output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
-    kfold_datasets = create_kfold_datasets(file_path, keywords, k)
+        datasets_training_folder = os.path.join(os.path.dirname(file_path), "datasets_training")
+        datasets_test_folder = os.path.join(os.path.dirname(file_path), "datasets_test")
 
-    # Save the dataset to a JSON file
-    #with open(output_file_path, 'w', encoding='utf-8') as json_file:
-        #json_file.write(json_dataset)
+        # Create the "datasets" folder if it doesn't exist
+        os.makedirs(datasets_training_folder, exist_ok=True)
+        os.makedirs(datasets_test_folder, exist_ok=True)
 
-    # Create the output directory if it doesn't exist
-    #os.makedirs(output_file_path, exist_ok=True)
-    
-    # Iterate over each fold in the kfold_datasets
-    for fold_index, fold_data in enumerate(kfold_datasets):
-        print('in kfold loop')
-        # Construct the filename for each fold
-        base_filename = 'dataset'  # Base name for your files
-        filename = f"{base_filename}_fold{fold_index+1}.json"
-        if fold_index < (k - 1):
-            file_path = os.path.join(datasets_training_folder, filename)
-        else:
-            file_path = os.path.join(datasets_test_folder, filename)
+        # Iterate over each text file
+        #for txt_file in txt_files:
+        #base_filename = os.path.splitext(os.path.basename(txtFile))
+        # Set the output file path within the "datasets" folder
+        #output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
+        kfold_datasets = create_kfold_datasets(keywords, k, book)
 
-        # Write the fold data to a JSON file
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump(fold_data, file, indent=4, ensure_ascii=False)
+        # Save the dataset to a JSON file
+        #with open(output_file_path, 'w', encoding='utf-8') as json_file:
+            #json_file.write(json_dataset)
 
-        print(f"Saved Fold {filename} dataset to {file_path}")
+        # Create the output directory if it doesn't exist
+        #os.makedirs(output_file_path, exist_ok=True)
+        
+        # Iterate over each fold in the kfold_datasets
+        for fold_index, fold_data in enumerate(kfold_datasets):
+            print('in kfold loop')
+            # Construct the filename for each fold
+            base_filename = 'dataset'  # Base name for your files
+            filename = f"{base_filename}_{book.filename}_fold{fold_index+1}.json"
+            if fold_index < (k - 1):
+                file_path = os.path.join(datasets_training_folder, filename)
+            else:
+                file_path = os.path.join(datasets_test_folder, filename)
+
+            # Write the fold data to a JSON file
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(fold_data, file, indent=4, ensure_ascii=False)
+
+            print(f"Saved Fold {filename} dataset to {file_path}")
+
+            
