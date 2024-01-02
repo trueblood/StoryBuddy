@@ -6,7 +6,7 @@ import os
 import re
 from sklearn.model_selection import KFold
 import glob
-
+from datetime import datetime
 
 
 # Load the spaCy model for English
@@ -230,15 +230,60 @@ class Book:
         self.filename_with_extension = os.path.basename(path)
         self.filename = os.path.splitext(os.path.basename(path))[0]
 
+def write_book_to_json(book, file_path):
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    book_info = {"filename": book.filename, "filename_with_extension" : book.filename_with_extension, "path": book.path, "processed_date": current_datetime}
+    # Create the correct path for the JSON files
+    processed_books_file_path = os.path.join(file_path, "processedbooks.json")
+    try:
+        # Try to read the existing data
+        if os.path.exists(processed_books_file_path):
+            with open(processed_books_file_path, 'r') as f:
+                data = json.load(f)
+        else:
+            data = []
+    except FileNotFoundError:
+        # In case of any unexpected FileNotFoundError
+        data = []
+
+    # Append the new book info
+    data.append(book_info)
+
+    # Write the data back to the JSON file
+    try:
+        with open(processed_books_file_path, "w") as f:
+            json.dump(data, f)
+        print(f"Successfully wrote book info to {processed_books_file_path}")
+    except Exception as e:
+        print(f"Failed to write book info to {processed_books_file_path}: {e}")
+
+def load_books(file_path, fullListOfBooks):
+    # Load the JSON file
+    processed_books_file_path = os.path.join(file_path, "processedbooks.json")
+    try:
+        with open(processed_books_file_path, 'r') as f:
+            processed_books = json.load(f)
+        processed_filenames = [book['filename_with_extension'] for book in processed_books]
+    except FileNotFoundError:
+        processed_filenames = []
+
+    # Filter out books whose filename_with_extension is in the JSON file
+    books = [book for book in fullListOfBooks if book.filename_with_extension  not in processed_filenames]
+    
+    return books
+    
 # Specify the path to your .txt file
 file = Path('../books/pg28587.txt')
 file_path = os.path.join(os.path.dirname(file), "texts")
 txt_files = glob.glob(os.path.join(file_path, "*.txt"))
-books = [Book(file) for file in txt_files]
+fullListOfBooks = [Book(file) for file in txt_files]
+processed_file_path = os.path.join(os.path.dirname(file), "processed")
+books = load_books(processed_file_path, fullListOfBooks)
 
 if len(books) > 0:
     for book in books:
-        
+        print(f"Processing {book.filename_with_extension}...")
         k = 5
         # Check if the file exists and create the dataset
         #if not txtFile.is_file():
@@ -252,10 +297,13 @@ if len(books) > 0:
 
         datasets_training_folder = os.path.join(os.path.dirname(file_path), "datasets_training")
         datasets_test_folder = os.path.join(os.path.dirname(file_path), "datasets_test")
+        processed_folder = os.path.join(os.path.dirname(file_path), "processed")
 
         # Create the "datasets" folder if it doesn't exist
         os.makedirs(datasets_training_folder, exist_ok=True)
         os.makedirs(datasets_test_folder, exist_ok=True)
+        os.makedirs(processed_folder, exist_ok=True)
+
 
         # Iterate over each text file
         #for txt_file in txt_files:
@@ -285,7 +333,8 @@ if len(books) > 0:
             # Write the fold data to a JSON file
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(fold_data, file, indent=4, ensure_ascii=False)
-
+            if fold_index == k-1:
+                write_book_to_json(book, processed_folder)
             print(f"Saved Fold {filename} dataset to {file_path}")
-
-            
+else:
+    print("No new books to process.")
