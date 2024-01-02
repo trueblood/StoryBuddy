@@ -232,7 +232,8 @@ class PositionalEncoding(nn.Module):
 
 class MakeModel():
     # Helper: Construct a model from hyperparameters.
-    def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
+    #def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
+    def make_model(src_vocab, tgt_vocab, N=8, d_model=768, d_ff=4096, h=10, dropout=0.1):
         c = copy.deepcopy
         attn = MultiHeadedAttention(h, d_model)
         ff = PositionwiseFeedForward(d_model, d_ff, dropout)
@@ -684,6 +685,31 @@ def predict(model, X_test):
 def calculate_accuracy(y_true, y_pred):
     accuracy = accuracy_score(y_true, y_pred)
     return accuracy
+
+
+
+def monitor_training(epoch, train_loss, val_loss, overfit_threshold=0.05, underfit_threshold=0.1):
+    """
+    Monitor for signs of overfitting and underfitting after each epoch.
+    :param epoch: Current epoch number.
+    :param train_loss: Average training loss for the epoch.
+    :param val_loss: Average validation loss for the epoch.
+    :param overfit_threshold: Threshold for detecting overfitting.
+    :param underfit_threshold: Threshold for detecting underfitting.
+    """
+    print(f"Epoch {epoch}: Training Loss: {train_loss}, Validation Loss: {val_loss}")
+
+    # Detect overfitting
+    if train_loss < val_loss - overfit_threshold:
+        print("Warning: Potential overfitting detected.")
+        # Additional logic or suggestions can be added here
+
+    # Detect underfitting
+    elif train_loss > underfit_threshold and val_loss > underfit_threshold:
+        print("Warning: Potential underfitting detected.")
+        # Additional logic or suggestions can be added here
+
+
 # Number of folds
 k = 5
 
@@ -728,7 +754,7 @@ print(len(tokenized_data_training))
 
 tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
 test_data = np.array(tokenized_data_training) # Convert to a NumPy array for easy indexing
-batch_size = 5 # Set a suitable batch size
+batch_size = 1 # Set a suitable batch size
 createModel = False
 
 
@@ -769,12 +795,14 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     for epoch in range(num_epochs):
         model.train()
         loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
-        TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
+        avg_train_loss = TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
         model.eval()
         avg_val_loss = evaluate_model(model, test_data, criterion, device)  # You need to implement this function to calculate validation loss
         # Update the scheduler with the validation loss
         scheduler.step(avg_val_loss)
-        print(f"Average validation loss after epoch {epoch + 1}: {avg_val_loss}")
+        # Monitor the training process for overfitting/underfitting
+        monitor_training(epoch, avg_train_loss, avg_val_loss)
+        print(f"Epoch {epoch + 1}: Average Training Loss: {avg_train_loss}, Average Validation Loss: {avg_val_loss}")
         # Save the final model
         torch.save(model.state_dict(), 'model.pth')
         print("Model saved as model.pth")
