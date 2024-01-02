@@ -20,6 +20,7 @@ import os
 from transformers import BertTokenizer
 from sklearn.metrics import accuracy_score
 import pyamdgpuinfo
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class EncoderDecorder(nn.Module):
@@ -346,8 +347,8 @@ class NoamOpt():
         Adjust factor: The factor parameter in NoamOpt multiplies the learning rate. By increasing this factor, you can increase the overall learning rate.
         Change warmup_steps: This parameter controls how long the learning rate will increase before it starts decaying. Reducing the number of warmup_steps will cause the learning rate to increase more rapidly.
         Modify the NoamOpt class or its initialization: If you want more control over the learning rate changes, consider modifying the NoamOpt class or how it's initialized.'''
-        factor = 2  # Try increasing this factor, e.g., 2, 3, etc.
-        warmup = 1000  # Adjust the warmup steps if needed
+        factor = 1  # Try increasing this factor, e.g., 2, 3, etc.
+        warmup = 4000  # Adjust the warmup steps if needed
         return NoamOpt(model.src_embed[0].d_model, factor, warmup, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
         #return NoamOpt(model.src_embed[0].d_model, 2, 4000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
     
@@ -389,13 +390,14 @@ class SimpleLossCompute():
         self.criterion = criterion
         self.opt = opt
         
-    def __call__(self, x, y, norm):
+    def __call__(self, x, y, norm, is_train=True):
         x = self.generator(x)
         loss = self.criterion(x.contiguous().view(-1, x.size(-1)), y.contiguous().view(-1))/norm
-        loss.backward()
-        if self.opt is not None:
-            self.opt.step()
-            self.opt.optimizer.zero_grad()
+        if is_train:
+            loss.backward()
+            if self.opt is not None:
+                self.opt.step()
+                self.opt.optimizer.zero_grad()
         return loss.data.item()*norm.float()
     
 '''
@@ -645,26 +647,30 @@ def train(model, train_data, criterion, optimizer, device, batch_size, fold, num
 def evaluate_model(model, test_data, criterion, device):
     model.eval()  # Set the model to evaluation mode
     total_loss = 0
-    correct_predictions = 0
-    total_predictions = 0
+    total_tokens = 0
 
     with torch.no_grad():  # No gradient updates
         for batch in Helper.data_generator(test_data, batch_size, device):
-            inputs, labels = batch
-            outputs = model(inputs)
+            # Extract the source, target, and masks from the batch
+            src = batch.src
+            trg = batch.trg
+            src_mask = batch.src_mask
+            trg_mask = batch.trg_mask
+            trg_y = batch.trg_y
+            ntokens = batch.ntokens
 
-            # Calculate loss
-            loss = criterion(outputs, labels)
+            # Forward pass
+            outputs = model(src, trg, src_mask, trg_mask)
+
+            # Calculate loss - remove norm (ntokens) from the arguments
+            loss = loss_compute(outputs, trg_y, ntokens, is_train=False)
             total_loss += loss.item()
+            total_tokens += ntokens.item()
 
-            # Calculate accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            total_predictions += labels.size(0)
-            correct_predictions += (predicted == labels).sum().item()
+    avg_loss = total_loss / total_tokens
+    return avg_loss
 
-    avg_loss = total_loss / len(test_data)
-    accuracy = correct_predictions / total_predictions
-    return avg_loss, accuracy
+
 
 
 def predict(model, X_test):
@@ -753,6 +759,7 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     # Loss and Optimizer for this fold
     criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
     optimizer = NoamOpt.get_std_opt(model)
+    scheduler = ReduceLROnPlateau(optimizer.optimizer, mode='min', factor=0.1, patience=5, min_lr=1e-6)
 
     # Helper function to print number of epochs
     Helper.print_number_epochs(batch_size, tokenized_data)
@@ -764,6 +771,10 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
         loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
         TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
         model.eval()
+        avg_val_loss = evaluate_model(model, test_data, criterion, device)  # You need to implement this function to calculate validation loss
+        # Update the scheduler with the validation loss
+        scheduler.step(avg_val_loss)
+        print(f"Average validation loss after epoch {epoch + 1}: {avg_val_loss}")
         # Save the final model
         torch.save(model.state_dict(), 'model.pth')
         print("Model saved as model.pth")
