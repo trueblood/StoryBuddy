@@ -163,13 +163,34 @@ def create_kfold_datasets(keywords, k, book):
     #chapters = [{'chapter': idx + 1, 'text': chapter.strip()} for idx, chapter in enumerate(chapters_text)]
 
     # Split chapters into segments of max 2000 words
+    #segments = []
+    #for idx, chapter in enumerate(chapters_text):
+    #    words = chapter.strip().split()
+    #    for i in range(0, len(words), 2000):
+    #        segment_text = ' '.join(words[i:i+2000])
+    #        segments.append({'chapter': idx + 1, 'segment': i // 2000 + 1, 'text': segment_text})
+
+    # Split chapters into segments
     segments = []
     for idx, chapter in enumerate(chapters_text):
         words = chapter.strip().split()
-        for i in range(0, len(words), 2000):
-            segment_text = ' '.join(words[i:i+2000])
-            segments.append({'chapter': idx + 1, 'segment': i // 2000 + 1, 'text': segment_text})
+        segment_start = 0
+        while segment_start < len(words):
+            segment_end = min(segment_start + 2000, len(words))
 
+            # Extend segment to include the complete last word
+            if segment_end < len(words):
+                while segment_end < len(words) and words[segment_end][-1].isalpha():
+                    segment_end += 1
+
+            segment_text = ' '.join(words[segment_start:segment_end])
+            segments.append({'chapter': idx + 1, 'segment': segment_start // 2000 + 1, 'text': segment_text})
+            segment_start = segment_end
+
+    # Adjust the number of folds if necessary
+    actual_k = min(k, len(segments))
+    if actual_k < k:
+        print(f"Warning: Not enough segments ({len(segments)}) to create {k} folds. Using {actual_k} folds instead.")
 
     # Initialize KFold
     kf = KFold(n_splits=k, shuffle=True)
@@ -202,7 +223,7 @@ def create_kfold_datasets(keywords, k, book):
         }
         fold_datasets.append(fold_dataset)
 
-    return fold_datasets
+    return fold_datasets, actual_k 
 
 def create_metadata(book_text):
     # Extract metadata using the custom tags
@@ -283,6 +304,7 @@ def load_books(file_path, fullListOfBooks):
     return books
     
 # Specify the path to your .txt file
+k = 5
 file = Path('../books/pg28587.txt')
 file_path = os.path.join(os.path.dirname(file), "texts")
 txt_files = glob.glob(os.path.join(file_path, "*.txt"))
@@ -293,7 +315,6 @@ print(len(books))
 if len(books) > 0:
     for book in books:
         print(f"Processing {book.filename_with_extension}...")
-        k = 5
         # Check if the file exists and create the dataset
         #if not txtFile.is_file():
         #    print(f"The file {txtFile} does not exist.")
@@ -319,7 +340,7 @@ if len(books) > 0:
         #base_filename = os.path.splitext(os.path.basename(txtFile))
         # Set the output file path within the "datasets" folder
         #output_file_path = os.path.join(datasets_folder, file_path.stem + ".json")
-        kfold_datasets = create_kfold_datasets(keywords, k, book)
+        kfold_datasets, k = create_kfold_datasets(keywords, k, book)
 
         # Save the dataset to a JSON file
         #with open(output_file_path, 'w', encoding='utf-8') as json_file:
