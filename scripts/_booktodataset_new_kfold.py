@@ -160,21 +160,30 @@ def create_kfold_datasets(keywords, k, book):
 
     # Extract chapters
     chapters_text = extract_content(book_text, 'c')  # Assuming this function works as intended
-    chapters = [{'chapter': idx + 1, 'text': chapter.strip()} for idx, chapter in enumerate(chapters_text)]
+    #chapters = [{'chapter': idx + 1, 'text': chapter.strip()} for idx, chapter in enumerate(chapters_text)]
+
+    # Split chapters into segments of max 2000 words
+    segments = []
+    for idx, chapter in enumerate(chapters_text):
+        words = chapter.strip().split()
+        for i in range(0, len(words), 2000):
+            segment_text = ' '.join(words[i:i+2000])
+            segments.append({'chapter': idx + 1, 'segment': i // 2000 + 1, 'text': segment_text})
+
 
     # Initialize KFold
     kf = KFold(n_splits=k, shuffle=True)
     fold_datasets = []
 
     #for train_index, test_index in kf.split(chapters):
-    for fold_index, (train_index, test_index) in enumerate(kf.split(chapters)):
+    for fold_index, (train_index, test_index) in enumerate(kf.split(segments)):
         print(f"Fold {fold_index + 1}:")
         print("Training chapter indices:", train_index)
         print("Testing chapter indices:", test_index)
 
         # Splitting chapters into training and testing
-        train_chapters = [chapters[i] for i in train_index]
-        test_chapters = [chapters[i] for i in test_index]
+        train_chapters = [segments[i] for i in train_index]
+        test_chapters = [segments[i] for i in test_index]
 
         # Optionally, print some content of train and test chapters to inspect
         print("Sample from first training chapter:", train_chapters[0]['text'][:100])  # Print first 100 chars
@@ -280,7 +289,7 @@ txt_files = glob.glob(os.path.join(file_path, "*.txt"))
 fullListOfBooks = [Book(file) for file in txt_files]
 processed_file_path = os.path.join(os.path.dirname(file), "processed")
 books = load_books(processed_file_path, fullListOfBooks)
-
+print(len(books))
 if len(books) > 0:
     for book in books:
         print(f"Processing {book.filename_with_extension}...")
