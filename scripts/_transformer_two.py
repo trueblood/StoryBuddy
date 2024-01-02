@@ -272,8 +272,8 @@ class TrainModel():
         total_loss = 0
         tokens = 0
         for i, batch in enumerate(data_iter):
-            Helper.print_memory_usage_gpu()
-            print(i)
+            #Helper.print_memory_usage_gpu()
+            #print(i)
             out = model.forward(batch.src, batch.trg, batch.src_mask, batch.trg_mask)
             loss = loss_compute(out, batch.trg_y, batch.ntokens)
             total_loss += loss
@@ -341,7 +341,15 @@ class NoamOpt():
         return self.factor*(self.model_size**(-0.5)*min(step**(-0.5), step*self.warmup**(-1.5)))
     
     def get_std_opt(model):
-        return NoamOpt(model.src_embed[0].d_model, 2, 4000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+        # Here, factor, model_size, and warmup_steps are parameters that influence the learning rate. 
+        '''Steps to Increase Learning Rate Gradually:
+        Adjust factor: The factor parameter in NoamOpt multiplies the learning rate. By increasing this factor, you can increase the overall learning rate.
+        Change warmup_steps: This parameter controls how long the learning rate will increase before it starts decaying. Reducing the number of warmup_steps will cause the learning rate to increase more rapidly.
+        Modify the NoamOpt class or its initialization: If you want more control over the learning rate changes, consider modifying the NoamOpt class or how it's initialized.'''
+        factor = 2  # Try increasing this factor, e.g., 2, 3, etc.
+        warmup = 1000  # Adjust the warmup steps if needed
+        return NoamOpt(model.src_embed[0].d_model, factor, warmup, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
+        #return NoamOpt(model.src_embed[0].d_model, 2, 4000, torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
     
     def state_dict(self):
         return self.optimizer.state_dict()
@@ -544,6 +552,8 @@ def load_and_preprocess_data(json_file, tokenizer):
 
     return tokenized_data
 
+
+
 def load_and_preprocess_data(directory, tokenizer):
     tokenized_data = []
 
@@ -555,10 +565,14 @@ def load_and_preprocess_data(directory, tokenizer):
                 data = json.load(file).get('train', {}).get('data', [])
                 
                 for item in data:
-                    encoded_text = tokenizer.encode(item['text'])
+                    #encoded_text = tokenizer.encode(item['text'])
+                    encoded_text = tokenizer.encode(item['text'], max_length=512, truncation=True)
                     tokenized_data.append({'encoded_text': encoded_text, 'tags': item['tags']})
 
     return tokenized_data
+
+
+
 
 '''def load_and_preprocess_data(json_file, tokenizer):
     with open(json_file, 'r') as file:
@@ -702,16 +716,14 @@ directory_path_for_testing = os.path.join(parent_directory, "books", "datasets_t
 tokenized_data = load_and_preprocess_data(directory_path_for_training, tokenizer)
 tokenized_data_training = load_and_preprocess_data(directory_path_for_testing, tokenizer)
 
-
 print(len(tokenized_data))
 print(len(tokenized_data_training))
 
 
 tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy indexing
 test_data = np.array(tokenized_data_training) # Convert to a NumPy array for easy indexing
-batch_size = 1 # Set a suitable batch size
+batch_size = 5 # Set a suitable batch size
 createModel = False
-
 
 
 for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
@@ -724,9 +736,10 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
 
     if (createModel == False):
         # Load the model
-        checkpoint = torch.load('checkpoint_fold1_index0.pth')
-        print("Model loaded from checkpoint_fold1_index0.pth")
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(torch.load('model.pth'))
+        #checkpoint = torch.load('model.pth')
+        print("Model loaded from model.pth")
+        #model.load_state_dict(checkpoint['model_state_dict'])
         #print(torch.cuda.is_available())
         #prompt = "Tim wanted to"  # Your starting text
         #print("Prompt:", prompt)
@@ -773,101 +786,3 @@ for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
     generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
     generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
     print(generated_story)
-
-
-
-
-
-
-
-
-
-'''
-
-
-# Check the number of items in the tokenized data
-print(f"Total items in tokenized data: {len(tokenized_data)}")
-
-# Print first few items to inspect
-num_items_to_display = 5  # You can change this number to display more or fewer items
-for i in range(min(num_items_to_display, len(tokenized_data))):
-    print(f"Item {i+1}:")
-    print(f"Encoded Text: {tokenized_data[i]['encoded_text']}")
-    print(f"Tags: {tokenized_data[i]['tags']}")
-    decoded_text = tokenizer.decode(tokenized_data[i]['encoded_text'])
-    print(f"Decoded Text: {decoded_text}\n")
-
-while (i < maxLoopNumber):
-    if (createModel):
-        # Create model
-        print("Creating a new model...")    
-        model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
-        model = model.to(device)
-    else:
-        # Load the model
-        model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
-        model = model.to(device)
-        model.load_state_dict(torch.load('model.pth'))
-        print("Model loaded from model.pth")
-
-    if (trainModel): 
-        print("Loop number:", i)
-
-        # Load and prepare dataset
-        #org_dataset = load_dataset("roneneldan/TinyStories")
-        #dataset = org_dataset.shuffle() #shuffle
-        #num_examples = min(100, len(dataset['train']))
-        #dataset['train'] = dataset['train'].select(range(num_examples))
-        #tokenized_dataset = dataset.map(CustomTokenizer.tokenize_fn, batched=True)
-        #print("Dataset example:", tokenized_dataset['train'][0])
-
-        # Set batch size and move model to device
-        batch_size = 1 # Set a suitable batch size
-        model = model.to(device) #move model to appropriate device
-        
-        # This is known as "incremental learning" or "fine-tuning on new data". 
-        # Freeze layers that you don't want to train
-        #for param in model.parameters():
-         #   param.requires_grad = False
-        # Unfreeze the layers you want to fine-tune (example given)
-        # for param in model.layer_you_want_to_train.parameters():
-        #     param.requires_grad = True
-            
-        # Loss and Optimizer
-        criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
-        optimizer = NoamOpt.get_std_opt(model)
-        
-        # Helper function to print number of epochs
-        #Helper.print_number_epochs(batch_size, tokenized_data)
-
-        # Training loop
-        for epoch in range(num_epochs):
-            model.train()
-            loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
-            #TrainModel.run_epoch(Helper.data_generator(tokenized_data['train'], batch_size, device), model, loss_compute)
-            TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute)
-            model.eval()
-
-            # Save the final model
-            torch.save(model.state_dict(), 'model.pth')
-            print("Model saved as model.pth")
-            print("Loop number:", i)
-        i += 1
-    else:
-        # Assuming model is an instance of the correct class
-        model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
-        model = model.to(device) #move model to appropriate device
-
-        # Load the model
-        model.load_state_dict(torch.load('model.pth'))
-        print("Model loaded from model.pth")
-        break
-
-print(torch.cuda.is_available())
-prompt = "Tim wanted to"  # Your starting text
-print("Prompt:", prompt)
-tokenized_prompt = tokenizer.encode(prompt)
-generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
-generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
-print(generated_story)
-'''
