@@ -21,6 +21,7 @@ from transformers import BertTokenizer
 from sklearn.metrics import accuracy_score
 import pyamdgpuinfo
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import re
 
 
 class EncoderDecorder(nn.Module):
@@ -729,6 +730,31 @@ def monitor_training(epoch, train_loss, val_loss, overfit_threshold=0.05, underf
         print("Warning: Potential underfitting detected.")
         # Additional logic or suggestions can be added here
 
+def remove_repetitive_sentences(text):
+    """ Remove repetitive sentences from the text """
+    sentences = text.split('.')
+    unique_sentences = []
+    for sentence in sentences:
+        if sentence and sentence not in unique_sentences:
+            unique_sentences.append(sentence)
+    return '. '.join(unique_sentences)
+
+def refine_story(model, initial_prompt, iterations, max_length, device, start_symbol_id):
+    """ Iteratively refine the story """
+    current_prompt = initial_prompt
+    for _ in range(iterations):
+        # Generate story
+        tokenized_prompt = tokenizer.encode(current_prompt)
+        generated_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length, device, start_symbol_id)
+        generated_story = tokenizer.decode(generated_tokens.tolist()[0])
+
+        # Post-process the story
+        processed_story = remove_repetitive_sentences(generated_story)
+
+        # Use the processed story as the new prompt
+        current_prompt = processed_story
+    
+    return processed_story
 
 # Number of folds
 k = 5
@@ -857,9 +883,10 @@ else:
     model.load_state_dict(torch.load('model.pth'))
     model.to(device)
     model.eval()
-    prompt = "Write a story about a young girl's journey back to her hometown after many years, reflecting on her memories and the changes she sees."  # Your starting text
-    print("Prompt:", prompt)
-    tokenized_prompt = tokenizer.encode(prompt)
-    generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
-    generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
-    print(generated_story)
+    initial_prompt = "Narrate a day in the life of a young woman in the 1800s, detailing her aspirations, familial duties, and the societal expectations she navigates."  # Your starting text
+    print("Prompt:", initial_prompt)
+    tokenized_prompt = tokenizer.encode(initial_prompt)
+    refined_story = refine_story(model, initial_prompt, 3, 500, device, start_symbol_id)
+    #generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
+    #generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
+    print(refined_story)
