@@ -102,10 +102,12 @@ class EncoderLayer(nn.Module):
         self.feed_forward = feed_forward
         self.sublayer = Clones.clones(SublayerConnection(size, dropout), 2)
         self.size = size
+        self.dropout = nn.Dropout(dropout)  # Add dropout
 
     def forward(self, x, mask):
         # Follow Figure 1 (left) for connections.
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
+        x = self.dropout(x)  # Apply dropout
         return self.sublayer[1](x, self.feed_forward)
 
 class Decoder(nn.Module):
@@ -302,7 +304,7 @@ class TrainModel():
         src_elements = count*max_src_in_batch
         tgt_elements = count*max_tgt_in_batch
         return max(src_elements, tgt_elements)
-    
+    '''
     def greedy_decode(model, src, src_mask, max_len, start_symbol):
         # Greedy decode function.
         memory = model.encode(src, src_mask)
@@ -314,7 +316,25 @@ class TrainModel():
             _, next_word = torch.max(prob, dim=1)
             next_word = next_word.data[0]
             ys = torch.cat([ys, torch.ones(1, 1).type_as(src.data).fill_(next_word)], dim=1)
+        return 
+    '''
+
+    def greedy_decode(model, src, src_mask, max_len, start_symbol, k):
+        memory = model.encode(src, src_mask)
+        ys = torch.ones(1, 1).fill_(start_symbol).type_as(src.data)
+        for i in range(max_len-1):
+            out = model.decode(memory, src_mask, Variable(ys), Variable(DecoderLayer.subsequent_mask(ys.size(1)).type_as(src.data)))
+            logits = model.generator(out[:, -1])
+            probs = F.softmax(logits, dim=-1)
+            
+            # Top-k sampling
+            topk_probs, topk_indices = torch.topk(probs, k, dim=-1)
+            next_word_index = topk_indices[0][random.choice(range(k))]
+            ys = torch.cat([ys, torch.ones(1, 1).type_as(src.data).fill_(next_word_index)], dim=1)
+        
         return ys
+
+
 
 class NoamOpt():
     # This is the optimizer.
@@ -534,12 +554,12 @@ class Helper():
         print(f"Number of iterations per epoch: {num_iterations}")
 
 class GenerateStory():
-    def generate_story(model, tokenized_prompt, max_length, device, start_symbol):
+    def generate_story(model, tokenized_prompt, max_length, device, start_symbol, k=10):
         model.eval()  # Set the model to evaluation mode
 
         src = torch.tensor([tokenized_prompt]).to(device)  # Convert to tensor and add batch dimension
         src_mask = (src != 0).unsqueeze(-2).to(device)  # Assuming 0 is the padding token
-        output = TrainModel.greedy_decode(model, src, src_mask, max_len=max_length, start_symbol=start_symbol)
+        output = TrainModel.greedy_decode(model, src, src_mask, max_len=max_length, start_symbol=start_symbol, k=k)
 
         return output
 
@@ -756,72 +776,90 @@ tokenized_data = np.array(tokenized_data)  # Convert to a NumPy array for easy i
 test_data = np.array(tokenized_data_training) # Convert to a NumPy array for easy indexing
 batch_size = 1 # Set a suitable batch size
 createModel = False
+train = False
 
+if (train):
+    for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
+        print(f"Running fold {fold + 1}/{k}")
+        
+        # Split data into training and test set for this fold
+        #train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
 
-for fold, (train_index, test_index) in enumerate(kf.split(tokenized_data)):
-    print(f"Running fold {fold + 1}/{k}")
-    
-    # Split data into training and test set for this fold
-    #train_data, test_data = tokenized_data[train_index], tokenized_data[test_index]
+        model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
 
+        if (createModel == False):
+            # Load the model
+            model.load_state_dict(torch.load('model.pth'))
+            #checkpoint = torch.load('model.pth')
+            print("Model loaded from model.pth")
+            #model.load_state_dict(checkpoint['model_state_dict'])
+            #print(torch.cuda.is_available())
+            #prompt = "Tim wanted to"  # Your starting text
+            #print("Prompt:", prompt)
+            #tokenized_prompt = tokenizer.encode(prompt)
+            #generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
+            #generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
+            #print(generated_story)
+
+        model = model.to(device)
+
+        # Loss and Optimizer for this fold
+        criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
+        optimizer = NoamOpt.get_std_opt(model)
+        scheduler = ReduceLROnPlateau(optimizer.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-6)
+
+        # Helper function to print number of epochs
+        Helper.print_number_epochs(batch_size, tokenized_data)
+
+        # Training loop for this fold
+        iteration = 0
+        best_val_loss = float('inf')
+        patience = 3
+        trigger_times = 0
+        for epoch in range(num_epochs):
+            model.train()
+            loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
+            avg_train_loss = TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
+            model.eval()
+            avg_val_loss = evaluate_model(model, test_data, criterion, device)  # You need to implement this function to calculate validation loss
+            # Update the scheduler with the validation loss
+            scheduler.step(avg_val_loss)
+            # Monitor the training process for overfitting/underfitting
+            monitor_training(epoch, avg_train_loss, avg_val_loss)
+            print(f"Epoch {epoch + 1}: Average Training Loss: {avg_train_loss}, Average Validation Loss: {avg_val_loss}")
+            # Save the final model
+            torch.save(model.state_dict(), 'model.pth')
+            print("Model saved as model.pth")
+
+            # Early Stopping Check
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                trigger_times = 0
+            else:
+                trigger_times += 1
+                if trigger_times >= patience:
+                    print(f"Early stopping at epoch {epoch}")
+                    break
+            # Evaluate on test data
+            #test_loss, test_accuracy = evaluate_model(model, test_data, criterion, device)
+            #print(f"Epoch {epoch+1}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
+
+            # Optionally, you can evaluate the model on test_data here
+            #predictions = model.predict(X_test)
+            # Calculate accuracy or other metrics
+            #accuracy = accuracy_score(y_test, predictions)
+            #print(f"Accuracy: {accuracy}")
+
+            # For a more detailed report
+            #print(classification_report(y_test, predictions))
+else:
     model = MakeModel.make_model(src_vocab, tgt_vocab, N, d_model, d_ff, h, dropout)
-
-    if (createModel == False):
-        # Load the model
-        model.load_state_dict(torch.load('model.pth'))
-        #checkpoint = torch.load('model.pth')
-        print("Model loaded from model.pth")
-        #model.load_state_dict(checkpoint['model_state_dict'])
-        #print(torch.cuda.is_available())
-        #prompt = "Tim wanted to"  # Your starting text
-        #print("Prompt:", prompt)
-        #tokenized_prompt = tokenizer.encode(prompt)
-        #generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
-        #generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
-        #print(generated_story)
-
-    model = model.to(device)
-
-    # Loss and Optimizer for this fold
-    criterion = LabelSmoothing(size=tgt_vocab, padding_idx=0, smoothing=0.1)
-    optimizer = NoamOpt.get_std_opt(model)
-    scheduler = ReduceLROnPlateau(optimizer.optimizer, mode='min', factor=0.1, patience=5, min_lr=1e-6)
-
-    # Helper function to print number of epochs
-    Helper.print_number_epochs(batch_size, tokenized_data)
-
-     # Training loop for this fold
-    iteration = 0
-    for epoch in range(num_epochs):
-        model.train()
-        loss_compute = SimpleLossCompute(model.generator, criterion, optimizer)
-        avg_train_loss = TrainModel.run_epoch(Helper.data_generator(tokenized_data, batch_size, device), model, loss_compute, optimizer, epoch, fold)
-        model.eval()
-        avg_val_loss = evaluate_model(model, test_data, criterion, device)  # You need to implement this function to calculate validation loss
-        # Update the scheduler with the validation loss
-        scheduler.step(avg_val_loss)
-        # Monitor the training process for overfitting/underfitting
-        monitor_training(epoch, avg_train_loss, avg_val_loss)
-        print(f"Epoch {epoch + 1}: Average Training Loss: {avg_train_loss}, Average Validation Loss: {avg_val_loss}")
-        # Save the final model
-        torch.save(model.state_dict(), 'model.pth')
-        print("Model saved as model.pth")
-        # Evaluate on test data
-        #test_loss, test_accuracy = evaluate_model(model, test_data, criterion, device)
-        #print(f"Epoch {epoch+1}, Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
-
-        # Optionally, you can evaluate the model on test_data here
-        #predictions = model.predict(X_test)
-        # Calculate accuracy or other metrics
-        #accuracy = accuracy_score(y_test, predictions)
-        #print(f"Accuracy: {accuracy}")
-
-        # For a more detailed report
-        #print(classification_report(y_test, predictions))
-
-    prompt = "Tim wanted to"  # Your starting text
+    model.load_state_dict(torch.load('model.pth'))
+    model.to(device)
+    model.eval()
+    prompt = "Write a story about a young girl's journey back to her hometown after many years, reflecting on her memories and the changes she sees."  # Your starting text
     print("Prompt:", prompt)
     tokenized_prompt = tokenizer.encode(prompt)
-    generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=1000, device=device, start_symbol=start_symbol_id)
+    generated_story_tokens = GenerateStory.generate_story(model, tokenized_prompt, max_length=100, device=device, start_symbol=start_symbol_id)
     generated_story = tokenizer.decode(generated_story_tokens.tolist()[0])
     print(generated_story)
