@@ -115,7 +115,6 @@ if __name__ == "__main__":
     api_url_create_story = 'https://story3.com/api/v2/stories'
     api_url_create_twist = 'https://story3.com/api/v2/twists'
 
-    api_key = 'YnhNNGtBb3JOZ29tUE5XUTo4ZmE0NjRhODNmYzFhMWI4MTQwNmQxZmUwYjdhMjRhYzBmZDJlM2Q0ZGI4ZjA5ZjI2YTgyMGE1OTFjYjMwZmYw'
 
     story_title = input("Enter your story title: ")
     story_body = input("Enter your story body: ")
