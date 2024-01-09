@@ -1,5 +1,7 @@
 import requests
 import json
+from dotenv import load_dotenv
+import os
 
 class Story:
     @property
@@ -112,9 +114,13 @@ def post_twist(api_url, api_key, twist):
         return f'Error: {response.status_code} - {response.text}'
 
 if __name__ == "__main__":
+    # Load environment variables from .env file
+    load_dotenv()
+    
     api_url_create_story = 'https://story3.com/api/v2/stories'
     api_url_create_twist = 'https://story3.com/api/v2/twists'
 
+    api_key = os.getenv("API_KEY")
 
     story_title = input("Enter your story title: ")
     story_body = input("Enter your story body: ")
@@ -124,7 +130,7 @@ if __name__ == "__main__":
     story.text = story_body
 
     result = post_story(api_url_create_story, api_key, story)
-    print('Story Created: ', result)
+    print('Story Created')
     story.hash_id = result['hashId']
     
     twists = []  # Create an empty list to store the twists
@@ -140,13 +146,13 @@ if __name__ == "__main__":
         twist.parent_hash_id = story.hash_id
         twist.twist_layer = 1
         result = post_twist(api_url_create_twist, api_key, twist)
-        print(f'Twist {i} Created: ', result)
+        print(f'Twist {i} Created: ')
         twist.hash_id = result['hashId']
         twists.append(twist)  # Append the twist to the list
 
     filtered_twists = [twist for twist in twists if twist.twist_layer == 1]
     for h in filtered_twists:
-        print(f"in twist layer {h.twist_layer}")
+        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
         twist_number = input("Enter the number of twists you want to add: ")
         twist_number = int(twist_number)
         for i in range(twist_number):
@@ -164,7 +170,7 @@ if __name__ == "__main__":
 
     filtered_twists = [twist for twist in twists if twist.twist_layer == 2]
     for h in filtered_twists:
-        print(f"in twist layer {h.twist_layer}")
+        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
         twist_number = input("Enter the number of twists you want to add: ")
         twist_number = int(twist_number)
         for i in range(twist_number):
@@ -182,7 +188,7 @@ if __name__ == "__main__":
     
     filtered_twists = [twist for twist in twists if twist.twist_layer == 3]
     for h in filtered_twists:
-        print(f"in twist layer {h.twist_layers}")
+        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
         twist_number = input("Enter the number of twists you want to add: ")
         twist_number = int(twist_number)
         for i in range(twist_number):
