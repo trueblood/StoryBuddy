@@ -122,6 +122,7 @@ if __name__ == "__main__":
 
     api_key = os.getenv("API_KEY")
 
+    # Get story details and post the story
     story_title = input("Enter your story title: ")
     story_body = input("Enter your story body: ")
 
@@ -135,71 +136,48 @@ if __name__ == "__main__":
     
     twists = []  # Create an empty list to store the twists
 
-    twist_number = input("Enter the number of twists you want to add: ")
-    twist_number = int(twist_number)
-    for i in range(twist_number):
-        twist_title = input(f"Enter your twist {i} title: ")
-        twist_body = input(f"Enter your twist {i} body: ")
-        twist = Twist()
-        twist.title = twist_title
-        twist.text = twist_body
-        twist.parent_hash_id = story.hash_id
-        twist.twist_layer = 1
-        result = post_twist(api_url_create_twist, api_key, twist)
-        print(f'Twist {i} Created: ')
-        twist.hash_id = result['hashId']
-        twists.append(twist)  # Append the twist to the list
+    # Ask for the number of layers
+    num_layers = int(input("Enter the number of layers you want to add: "))
 
-    filtered_twists = [twist for twist in twists if twist.twist_layer == 1]
-    for h in filtered_twists:
-        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
-        twist_number = input("Enter the number of twists you want to add: ")
-        twist_number = int(twist_number)
-        for i in range(twist_number):
-            twist_title = input(f"Enter your twist {i} title: ")
-            twist_body = input(f"Enter your twist {i} body: ")
-            twist = Twist()
-            twist.title = twist_title
-            twist.text = twist_body
-            twist.parent_hash_id = h.hash_id
-            twist.twist_layer = 2
-            result = post_twist(api_url_create_twist, api_key, twist)
-            print(f'Twist {i} Created')
-            twist.hash_id = result['hashId']
-            twists.append(twist)
+    # Iterate through each layer
+    for layer in range(1, num_layers + 1):
+        print(f"--- Adding twists for Layer {layer} ---")
 
-    filtered_twists = [twist for twist in twists if twist.twist_layer == 2]
-    for h in filtered_twists:
-        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
-        twist_number = input("Enter the number of twists you want to add: ")
-        twist_number = int(twist_number)
-        for i in range(twist_number):
-            twist_title = input(f"Enter your twist {i} title: ")
-            twist_body = input(f"Enter your twist {i} body: ")
-            twist = Twist()
-            twist.title = twist_title
-            twist.text = twist_body
-            twist.parent_hash_id = h.hash_id
-            twist.twist_layer = 3
-            result = post_twist(api_url_create_twist, api_key, twist)
-            print(f'Twist {i} Created')
-            twist.hash_id = result['hashId']
-            twists.append(twist)
-    
-    filtered_twists = [twist for twist in twists if twist.twist_layer == 3]
-    for h in filtered_twists:
-        print(f"in twist layer {h.twist_layer} twist title: {h.title}")
-        twist_number = input("Enter the number of twists you want to add: ")
-        twist_number = int(twist_number)
-        for i in range(twist_number):
-            twist_title = input(f"Enter your twist {i} title: ")
-            twist_body = input(f"Enter your twist {i} body: ")
-            twist = Twist()
-            twist.title = twist_title
-            twist.text = twist_body
-            twist.parent_hash_id = h.hash_id
-            twist.twist_layer = 4
-            result = post_twist(api_url_create_twist, api_key, twist)
-            print(f'Twist {i} Created')
-            twist.hash_id = result['hashId']
-            twists.append(twist)
+        if layer == 1:
+            # For the first layer, add twists directly to the story
+            twist_number = int(input(f"Enter the number of twists for Layer {layer}: "))
+            for i in range(twist_number):
+                twist_title = input(f"Enter Twist {i+1} title for Layer {layer}: ")
+                twist_body = input(f"Enter Twist {i+1} body for Layer {layer}: ")
+                twist = Twist()
+                twist.title = twist_title
+                twist.text = twist_body
+                twist.twist_layer = layer
+                twist.parent_hash_id = story.hash_id
+
+                # Post the twist and append to the list
+                result = post_twist(api_url_create_twist, api_key, twist)
+                print(f'Twist {i+1} for Layer {layer} Created')
+                twist.hash_id = result['hashId']
+                twists.append(twist)
+        else:
+            # For layers beyond the first, add child twists for each parent twist
+            parent_twists = [t for t in twists if t.twist_layer == layer - 1]
+            for parent_twist in parent_twists:
+                print(f"Adding child twists for parent twist: {parent_twist.title}")
+                child_twist_number = int(input(f"Enter the number of child twists for '{parent_twist.title}': "))
+
+                for i in range(child_twist_number):
+                    twist_title = input(f"Enter child Twist {i+1} title for '{parent_twist.title}': ")
+                    twist_body = input(f"Enter child Twist {i+1} body for '{parent_twist.title}': ")
+                    twist = Twist()
+                    twist.title = twist_title
+                    twist.text = twist_body
+                    twist.twist_layer = layer
+                    twist.parent_hash_id = parent_twist.hash_id
+
+                    # Post the twist and append to the list
+                    result = post_twist(api_url_create_twist, api_key, twist)
+                    print(f'Child Twist {i+1} for parent {parent_twist.title} Created')
+                    twist.hash_id = result['hashId']
+                    twists.append(twist)
