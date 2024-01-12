@@ -136,8 +136,9 @@ def publish_twist(api_url_base, api_key, hash_id):
         'x-auth-token': api_key,
         'Content-Type': 'application/json'
     }
+    data = {}
 
-    response = requests.post(api_url, headers=headers)
+    response = requests.post(api_url, headers=headers, json=data)
 
     if response.status_code == 200:
         try:
@@ -241,4 +242,4 @@ if __name__ == "__main__":
 
 
 
-    print(twists[:5])
+    print("done publishing story and twists")
