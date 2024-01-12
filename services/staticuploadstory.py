@@ -205,20 +205,6 @@ def extract_twists_and_child_twists_post_publish(data, story, result=None):
                             greatgrandchild_twist.hash_id = result['hashId']
                             publish_result = publish_twist(api_url_base_twists, api_key, greatgrandchild_twist.hash_id)
                             print(greatgrandchild_twist.title)
-                            #twist.child_twists.append(greatgrandchild_twist)
-                        #twist.child_twists.append(grandchild_twist)
-                    #child_twist = ChildTwist(child_item.get('title'), child_item.get('text'))
-                    #print(child_twist.title)
-                    #print(child_twist.text)
-                    #twist.child_twists.append(child_twist)
-                    # Recursively extract child twists of this child twist
-                    #extract_twists_and_child_twists(child_item.get('childTwists', []), result)
-
-            #result.append(item)  # Append the twist itself
-            #if 'childTwists' in item:
-            #    twist.child_twists.append(item['childTwists'])
-            #    extract_twists_and_child_twists(item['childTwists'], result)
-
     return result
 
 
