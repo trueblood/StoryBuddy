@@ -62,12 +62,16 @@ class Twist:
         self._parent_hash_id = value
 
     @property
-    def twist_layer(self):
-        return self._twist_layer
+    def child_twists(self):
+        return self._child_twists
 
-    @twist_layer.setter
-    def twist_layer(self, value):
-        self._twist_layer = value
+    @child_twists.setter
+    def child_twists(self, value):
+        self._child_twists = value
+
+class ChildTwist(Twist):
+    def __init__(self, title, text):
+        super().__init__(title, text)
 
 def get_data(file_path):
     with open(file_path, 'r') as file:
@@ -144,7 +148,11 @@ def publish_twist(api_url_base, api_key, hash_id):
         return f'Error: {response.status_code} - {response.text}'
 
 
-def extract_twists_and_child_twists(data, result=None):
+def extract_twists_and_child_twists_post_publish(data, story, result=None):
+    api_url_create_story = 'https://story3.com/api/v2/stories'
+    api_url_create_twist = 'https://story3.com/api/v2/twists'
+    api_url_base_twists = 'https://story3.com/api/v2/twists'
+    api_key = os.getenv("API_KEY")
     """
     Recursively extracts all child twists from the given data.
     :param data: The JSON data containing the twists.
@@ -156,9 +164,59 @@ def extract_twists_and_child_twists(data, result=None):
 
     if isinstance(data, list):
         for item in data:
-            result.append(item)  # Append the twist itself
+            twist = Twist()
+            twist.title = item.get('title')
+            twist.text = item.get('text')
+            # Post the twist and append to the list
+            twist.parent_hash_id = story.hash_id
+            result = post_twist(api_url_create_twist, api_key, twist)
+            twist.hash_id = result['hashId']
+            publish_result = publish_twist(api_url_base_twists, api_key, twist.hash_id)
+            print(twist.title)
             if 'childTwists' in item:
-                extract_twists_and_child_twists(item['childTwists'], result)
+                for child_item in item['childTwists']:
+                    child_twist = Twist()
+                    child_twist.parent_hash_id = twist.hash_id
+                    child_twist.title = child_item.get('title')
+                    child_twist.text = child_item.get('text')
+                    # Post the twist and append to the list
+                    result = post_twist(api_url_create_twist, api_key, child_twist)
+                    child_twist.hash_id = result['hashId']
+                    publish_result = publish_twist(api_url_base_twists, api_key, child_twist.hash_id)
+                    print(child_twist.title)
+                    for grandchild_item in child_item['childTwists']:
+                        grandchild_twist = Twist()
+                        grandchild_twist.parent_hash_id = child_twist.hash_id
+                        grandchild_twist.title = grandchild_item.get('title')
+                        grandchild_twist.text = grandchild_item.get('text')
+                        # Post the twist and append to the list
+                        result = post_twist(api_url_create_twist, api_key, grandchild_twist)
+                        grandchild_twist.hash_id = result['hashId']
+                        publish_result = publish_twist(api_url_base_twists, api_key, grandchild_twist.hash_id)
+                        print(grandchild_twist.title)
+                        for greatgrandchild_item in grandchild_item['childTwists']:
+                            greatgrandchild_twist = Twist()
+                            greatgrandchild_twist.parent_hash_id = grandchild_twist.hash_id
+                            greatgrandchild_twist.title = greatgrandchild_item.get('title')
+                            greatgrandchild_twist.text = greatgrandchild_item.get('text')
+                            # Post the twist and append to the list
+                            result = post_twist(api_url_create_twist, api_key, greatgrandchild_twist)
+                            greatgrandchild_twist.hash_id = result['hashId']
+                            publish_result = publish_twist(api_url_base_twists, api_key, greatgrandchild_twist.hash_id)
+                            print(greatgrandchild_twist.title)
+                            #twist.child_twists.append(greatgrandchild_twist)
+                        #twist.child_twists.append(grandchild_twist)
+                    #child_twist = ChildTwist(child_item.get('title'), child_item.get('text'))
+                    #print(child_twist.title)
+                    #print(child_twist.text)
+                    #twist.child_twists.append(child_twist)
+                    # Recursively extract child twists of this child twist
+                    #extract_twists_and_child_twists(child_item.get('childTwists', []), result)
+
+            #result.append(item)  # Append the twist itself
+            #if 'childTwists' in item:
+            #    twist.child_twists.append(item['childTwists'])
+            #    extract_twists_and_child_twists(item['childTwists'], result)
 
     return result
 
@@ -179,5 +237,8 @@ if __name__ == "__main__":
     story.hash_id = story_result.get('hashId')
     print('Story Created')
 
-    twists = extract_twists_and_child_twists(file['twists'])
+    twists = extract_twists_and_child_twists_post_publish(file['twists'], story)
+
+
+
     print(twists[:5])
