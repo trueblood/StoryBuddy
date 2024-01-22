@@ -195,7 +195,7 @@ def extract_twists_and_child_twists_post_publish(data, story, result=None):
                         grandchild_twist.hash_id = result['hashId']
                         publish_result = publish_twist(api_url_base_twists, api_key, grandchild_twist.hash_id)
                         print(grandchild_twist.title)
-                        for greatgrandchild_item in grandchild_item['childTwists']:
+                        '''for greatgrandchild_item in grandchild_item['childTwists']:
                             greatgrandchild_twist = Twist()
                             greatgrandchild_twist.parent_hash_id = grandchild_twist.hash_id
                             greatgrandchild_twist.title = greatgrandchild_item.get('title')
@@ -204,7 +204,7 @@ def extract_twists_and_child_twists_post_publish(data, story, result=None):
                             result = post_twist(api_url_create_twist, api_key, greatgrandchild_twist)
                             greatgrandchild_twist.hash_id = result['hashId']
                             publish_result = publish_twist(api_url_base_twists, api_key, greatgrandchild_twist.hash_id)
-                            print(greatgrandchild_twist.title)
+                            print(greatgrandchild_twist.title)'''
     return result
 
 
