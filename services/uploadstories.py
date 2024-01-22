@@ -3,6 +3,46 @@ import json
 from dotenv import load_dotenv
 import os
 
+class StoryWithTwist:
+    @property
+    def story(self):
+        return self._story
+    
+    @story.setter
+    def story(self, value):
+        self._story = value
+
+    @property
+    def child_twists(self):
+        return self._child_twists
+
+    @child_twists.setter
+    def child_twists(self, child_twists):
+        self._child_twists = child_twists
+
+
+class TwistWithChildTwists:
+    def __init__(self, title, text):
+        self.title = title
+        self.text = text
+        self._child_twists = []
+        
+    @property
+    def twist(self):
+        return self._twist
+    
+    @twist.setter
+    def twist(self, value):
+        self._twist = value
+
+    @property
+    def child_twists(self):
+        return self._child_twists
+    
+    @child_twists.setter
+    def child_twists(self, value):
+        self._child_twists = value
+
 class Story:
     @property
     def title(self):

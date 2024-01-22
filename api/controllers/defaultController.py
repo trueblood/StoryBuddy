@@ -83,7 +83,7 @@ class defaultController():
     
     def verify_recaptcha(self, recaptcha_response):
         print(recaptcha_response)
-        secret_key = '6LcyVTspAAAAAGKNyj8t9t_SBdnsT7OCCUWjEup4'  # Replace with your secret key
+        secret_key = ''  # Replace with your secret key
         data = {
             'secret': secret_key,
             'response': recaptcha_response
