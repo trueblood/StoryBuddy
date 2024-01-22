@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+
+{% block title %}AI Input{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">AI Input</h1>
+    <p class="text-center">Enter a prompt to get a story response from the AI.</p>
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <form onsubmit="event.preventDefault(); fetchData();" class="mb-3">
+                <div class="mb-3">
+                    <label for="txtPrompt" class="form-label">Prompt:</label>
+                    <input type="text" id="txtPrompt" class="form-control">
+                    <label for="txtResponseLength" class="form-label">Response Length:</label>
+                    <input type="text" id="txtResponseLength" class="form-control">
+                </div>
+                <!-- reCAPTCHA widget -->
+                <!--<div class="g-recaptcha" data-sitekey="6LcyVTspAAAAAH4IbNLwNEW-0-hnm-RCpzYWcgBJ"></div>-->
+                    <!-- /reCAPTCHA widget -->
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </div>  
+            </form>
+            <p class="text-center">Output from AI:</p>
+            <div id="spinnerContainer" class="d-flex justify-content-center"></div>
+            <p id="apiData" class="text-center"></p>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">  
+    function showLoadingSpinner() {
+        const spinner = document.createElement('div');
+        spinner.classList.add('spinner-border');
+        spinner.setAttribute('role', 'status');
+        spinner.innerHTML = '<span class="visually-hidden">Loading...</span>';
+
+        const container = document.getElementById('spinnerContainer');
+        container.appendChild(spinner);
+    }
+    function hideLoadingSpinner() {
+        const spinnerContainer = document.getElementById('spinnerContainer');
+        spinnerContainer.innerHTML = '';
+    }
+    function validateAndFetchData() {
+        if (grecaptcha.getResponse().length !== 0) {
+            fetchData();
+        } else {
+            alert('Please check the reCAPTCHA box.');
+        }
+    }
+    async function fetchData() {
+        showLoadingSpinner();
+        const promptValue = document.getElementById('txtPrompt').value;
+       // const recaptchaResponse = grecaptcha.getResponse(); // Get the reCAPTCHA response
+        const responseLengthValue = document.getElementById('txtResponseLength').value;
+    
+        const response = await fetch('http://75.187.70.207:5080/generate_story', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompt: promptValue,
+                recaptcha_response: null, // Send the reCAPTCHA response to backend
+                max_length: responseLengthValue
+            })
+        });
+    
+        hideLoadingSpinner();
+        const data = await response.json();
+        document.getElementById('apiData').innerText = JSON.stringify(data);
+    }    
+</script>
+{% endblock %}

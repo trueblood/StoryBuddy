@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+
+{% block title %}History{% endblock %}
+
+{% block content %}
+    <h1>History Page</h1>
+    <div id="apiContent">Loading...</div>
+    <!-- More content here -->
+
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            loadHistoryData();
+        });
+        
+        function loadHistoryData() {
+            fetch('https://example.com/api/history')
+                .then(response => response.json())
+                .then(data => {
+                    var table = $('<table>').addClass('history-table');
+                    table.append('<tr><th>Column1</th><th>Column2</th></tr>'); // Replace with your actual column headers
+
+                    $.each(data, function(index, item) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(item.field1)); // Replace field1 with your actual field names
+                        row.append($('<td>').text(item.field2)); // Replace field2
+                        table.append(row);
+                    });
+
+                    $('#apiContent').empty().append(table);
+                })
+                .catch(error => {
+                    console.error('Error fetching history:', error);
+                    $('#apiContent').text('Failed to load data.');
+                });
+        }
+    </script>
+{% endblock %}
