@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from PositionalEncoding import PositionalEncoding
-from EncoderLayer import EncoderLayer
+from api.models.EncoderLayer import EncoderLayer
 from DecoderLayer import DecoderLayer
 
 class Transformer(nn.Module):

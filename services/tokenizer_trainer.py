@@ -7,7 +7,6 @@ from tokenizers.pre_tokenizers import Whitespace
 def train_and_save_tokenizer(dataset_name, output_file):
     # Load the dataset
     dataset = load_dataset(dataset_name)
-    
 
     # Extract text data and prepare for tokenizer training
     texts = [story['text'] for story in dataset['train']]
